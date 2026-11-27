@@ -2,3 +2,6 @@ project_id = "trillion"
 
 [db]
 major_version = 15
+
+[functions.send-email]
+verify_jwt = false
