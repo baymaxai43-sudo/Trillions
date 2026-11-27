@@ -30,17 +30,12 @@ export class HooksController {
     }
     const { user, email_data } = payload;
     const type = email_data.email_action_type;
-    try {
-      if (type === 'email_change' && user.new_email && email_data.token_new) {
-        await this.mailer.sendOtp(user.email, email_data.token, type);
-        await this.mailer.sendOtp(user.new_email, email_data.token_new, type);
-      } else {
-        await this.mailer.sendOtp(user.email, email_data.token, type);
-      }
-    } catch (e) {
-      this.log.error(`send failed: ${(e as Error).message}`);
-      return { error: { http_code: 500, message: 'Could not send email' } };
-    }
+    // Supabase gives hooks 5s; reply now and deliver in the background.
+    const jobs =
+      type === 'email_change' && user.new_email && email_data.token_new
+        ? [this.mailer.sendOtp(user.email, email_data.token, type), this.mailer.sendOtp(user.new_email, email_data.token_new, type)]
+        : [this.mailer.sendOtp(user.email, email_data.token, type)];
+    Promise.all(jobs).catch((e) => this.log.error(`send failed: ${(e as Error).message}`));
     return {};
   }
 }
