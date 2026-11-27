@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../src/lib/supabase';
 import { colors, radius, space, type } from '../src/theme';
 
@@ -53,18 +54,19 @@ export default function Auth() {
     }
   };
 
-  const google = async () => {
+  const oauth = async (provider: 'google' | 'github') => {
+    const label = provider === 'google' ? 'Google' : 'GitHub';
     setBusy(true);
     setMsg(null);
     try {
       const redirectTo = Linking.createURL('auth-callback');
-      const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo, skipBrowserRedirect: true } });
-      if (error || !data?.url) throw error ?? new Error('Could not start Google sign-in');
+      const { data, error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo, skipBrowserRedirect: true } });
+      if (error || !data?.url) throw error ?? new Error(`Could not start ${label} sign-in`);
       const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
       if (res.type !== 'success') return;
       const { queryParams } = Linking.parse(res.url);
       const authCode = typeof queryParams?.code === 'string' ? queryParams.code : null;
-      if (!authCode) throw new Error(String(queryParams?.error_description ?? 'Google sign-in was cancelled'));
+      if (!authCode) throw new Error(String(queryParams?.error_description ?? `${label} sign-in was cancelled`));
       const { error: exErr } = await supabase.auth.exchangeCodeForSession(authCode);
       if (exErr) throw exErr;
       router.replace('/');
@@ -98,9 +100,13 @@ export default function Auth() {
         {mode !== 'code' && (
           <>
             <View style={s.orRow}><View style={s.line} /><Text style={s.or}>or</Text><View style={s.line} /></View>
-            <Pressable style={s.gBtn} onPress={google} disabled={busy}>
+            <Pressable style={s.gBtn} onPress={() => oauth('google')} disabled={busy}>
               <Text style={s.gG}>G</Text>
               <Text style={s.gText}>Continue with Google</Text>
+            </Pressable>
+            <Pressable style={s.gBtn} onPress={() => oauth('github')} disabled={busy}>
+              <Ionicons name="logo-github" size={20} color="#24292F" />
+              <Text style={s.gText}>Continue with GitHub</Text>
             </Pressable>
           </>
         )}

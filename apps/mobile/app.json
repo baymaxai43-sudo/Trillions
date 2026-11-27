@@ -3,7 +3,7 @@
     "name": "TRILLION",
     "slug": "trillion",
     "scheme": "trillion",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#FFFFFF",
@@ -13,7 +13,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#062A1E"
       },
-      "versionCode": 3
+      "versionCode": 4
     },
     "plugins": [
       "expo-router",
