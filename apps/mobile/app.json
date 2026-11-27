@@ -20,13 +20,20 @@
       "expo-secure-store"
     ],
     "extra": {
-      "apiUrl": "https://trillion-api.onrender.com"
+      "apiUrl": "https://trillion-api.onrender.com",
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "7ddfb9f0-891e-4c89-bf99-0a678a65dc1d"
+      }
     },
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
-    }
+    },
+    "owner": "officialdarax"
   }
 }
