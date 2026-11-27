@@ -1,18 +1,25 @@
 import { apiFetch } from './api';
 import type { Msg } from './chat';
-import { openSse } from './sse';
+import { openSse, SseHandlers } from './sse';
 
 export type PlanStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped';
 export type PlanStep = { title: string; status: PlanStatus };
 
-/** Everything the chat list can show. */
-export type ChatItem =
+/** Everything the chat list can show. `key` is a stable id for list rendering. */
+export type ChatItem = { key?: string } & (
   | { kind: 'user'; content: string }
   | { kind: 'assistant'; content: string }
   | { kind: 'plan'; steps: PlanStep[] }
   | { kind: 'tool'; id: string; name: string; args: Record<string, unknown>; status: 'running' | 'ok' | 'error'; summary?: string; depth: number }
   | { kind: 'artifact'; name: string; url: string; mime: string; size: number }
-  | { kind: 'confirm'; id: string; tool: string; summary: string; args: Record<string, unknown>; state: 'pending' | 'approved' | 'declined' };
+  | { kind: 'confirm'; id: string; tool: string; summary: string; args: Record<string, unknown>; state: 'pending' | 'approved' | 'declined' }
+  | { kind: 'error'; message: string }
+);
+
+let counter = 0;
+export const uid = () => `${Date.now().toString(36)}-${(counter++).toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+/** Gives an item a stable key (used for FlatList keys). */
+export const mk = <T extends ChatItem>(item: T): T => (item.key ? item : { ...item, key: uid() });
 
 export type PendingConfirmation = { runId: string; id: string; tool: string; summary: string; args: Record<string, unknown> };
 
@@ -22,19 +29,25 @@ export const toHistory = (items: ChatItem[]): Msg[] =>
     .map((i) => ({ role: i.kind, content: i.content }));
 
 /** Starts an agent run and streams its events. The run keeps going server-side if this detaches. */
-export function streamAgent(
-  messages: Msg[],
-  opts: { conversationId?: string; model?: string },
-  onEvent: (ev: any) => void,
-  onClose?: (reason: 'end' | 'error') => void,
-) {
-  return openSse('POST', '/v1/agent/stream', { messages: messages.slice(-40), conversationId: opts.conversationId, model: opts.model ?? 'auto' }, onEvent, onClose);
+export function streamAgent(messages: Msg[], opts: { conversationId?: string; model?: string }, handlers: SseHandlers) {
+  return openSse(
+    'POST',
+    '/v1/agent/stream',
+    { messages: messages.slice(-40), conversationId: opts.conversationId, model: opts.model ?? 'auto' },
+    handlers,
+  );
 }
 
 /** Re-attaches to a run and replays events after `afterSeq`. */
-export function reattachRun(runId: string, afterSeq: number, onEvent: (ev: any) => void, onClose?: (reason: 'end' | 'error') => void) {
-  return openSse('GET', `/v1/agent/runs/${runId}/stream?after=${afterSeq}`, undefined, onEvent, onClose);
+export function reattachRun(runId: string, afterSeq: number, handlers: SseHandlers) {
+  return openSse('GET', `/v1/agent/runs/${runId}/stream?after=${afterSeq}`, undefined, handlers, { retries: 1, firstByteTimeoutMs: 75_000 });
 }
+
+export type RunStatus = 'queued' | 'running' | 'waiting_approval' | 'completed' | 'failed' | 'cancelled';
+export type RunRecord = { id: string; status: RunStatus; result: string | null; error: string | null; conversation_id: string | null };
+export const TERMINAL: RunStatus[] = ['completed', 'failed', 'cancelled'];
+
+export const getRun = (runId: string) => apiFetch<RunRecord>(`/v1/agent/runs/${runId}`);
 
 export const confirmAction = (runId: string, confirmationId: string, approve: boolean) =>
   apiFetch('/v1/agent/confirm', { method: 'POST', body: { runId, confirmationId, approve } });

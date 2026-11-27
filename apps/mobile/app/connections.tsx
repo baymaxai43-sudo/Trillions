@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { TopBar } from '../src/components/TopBar';
+import { BackHeader } from '../src/components/TopBar';
 import { apiFetch } from '../src/lib/api';
 import { colors, radius, space, type } from '../src/theme';
 
@@ -111,7 +111,7 @@ export default function Connections() {
 
   return (
     <SafeAreaView style={s.safe}>
-      <TopBar title="Connections" onHome={() => router.back()} />
+      <BackHeader title="Connected accounts" />
       <ScrollView contentContainerStyle={s.body} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.primary} />}>
         <Text style={s.lead}>Let the agent work in your accounts. Tokens are encrypted on the server and never stored on this phone. Anything that sends, commits or deploys asks you first.</Text>
         {!list && loading && <ActivityIndicator color={colors.primary} style={{ marginTop: space(4) }} />}
@@ -174,19 +174,19 @@ const s = StyleSheet.create({
   body: { padding: space(2), gap: space(1.5) },
   lead: { ...type.secondary, color: colors.textMuted, marginBottom: space(0.5) },
   flex: { flex: 1 },
-  card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.card, padding: space(1.75), gap: space(1.5) },
+  card: { backgroundColor: colors.bg, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: space(1.75), gap: space(1.5) },
   row: { flexDirection: 'row', alignItems: 'center', gap: space(1.5) },
-  logo: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  logoOn: { backgroundColor: colors.brandDeep },
-  logoText: { fontWeight: '800', color: colors.primaryDark },
-  logoTextOn: { color: '#fff' },
+  logo: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  logoOn: { backgroundColor: colors.accentSoft, borderColor: '#BFEBD8' },
+  logoText: { fontWeight: '600', color: colors.textMuted },
+  logoTextOn: { color: colors.accentDark },
   name: { ...type.body, fontWeight: '600', color: colors.text },
   desc: { ...type.caption, color: colors.textMuted },
-  btn: { height: 38, paddingHorizontal: space(2), borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  btn: { height: 34, paddingHorizontal: space(1.5), borderRadius: radius.sm, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' },
   btnDisabled: { opacity: 0.45 },
-  btnText: { ...type.secondary, color: '#fff', fontWeight: '700' },
+  btnText: { ...type.caption, color: '#fff', fontWeight: '600' },
   btnGhost: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border },
-  btnGhostText: { ...type.secondary, color: colors.text, fontWeight: '600' },
+  btnGhostText: { ...type.caption, color: colors.text, fontWeight: '500' },
   keyBox: { gap: space(1) },
   input: { height: 46, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, paddingHorizontal: space(1.5), color: colors.text, ...type.secondary },
   hint: { ...type.caption, color: colors.textMuted },

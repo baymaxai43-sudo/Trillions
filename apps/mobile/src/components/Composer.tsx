@@ -1,6 +1,11 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, space, type } from '../theme';
+
+const LINE = 22;
+const MAX_LINES = 6;
 
 export function Composer({
   busy,
@@ -8,59 +13,115 @@ export function Composer({
   onStop,
   agentMode,
   onToggleAgent,
+  value,
+  onChangeValue,
 }: {
   busy: boolean;
   onSend: (t: string) => void;
   onStop: () => void;
   agentMode?: boolean;
   onToggleAgent?: () => void;
+  value?: string;
+  onChangeValue?: (t: string) => void;
 }) {
-  const [text, setText] = useState('');
+  const [own, setOwn] = useState('');
+  const text = value ?? own;
+  const setText = onChangeValue ?? setOwn;
+  const [height, setHeight] = useState(LINE);
+  const canSend = text.trim().length > 0;
+
   const send = () => {
     const t = text.trim();
     if (!t) return;
     setText('');
+    setHeight(LINE);
     onSend(t);
   };
+
   return (
+    <View style={s.shadow}>
     <View style={s.wrap}>
+      <BlurView intensity={40} tint="light" experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined} style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, s.veil]} />
       <TextInput
-        style={s.input}
-        placeholder={agentMode ? 'Give TRILLION a task' : 'Ask TRILLION anything'}
-        placeholderTextColor={colors.textMuted}
+        style={[s.input, { height: Math.min(Math.max(LINE, height), LINE * MAX_LINES) + 12 }]}
+        placeholder="Ask TRILLION anything"
+        placeholderTextColor={colors.textFaint}
         value={text}
         onChangeText={setText}
+        onContentSizeChange={(e) => setHeight(e.nativeEvent.contentSize.height)}
         multiline
+        scrollEnabled={height > LINE * MAX_LINES}
+        textAlignVertical="top"
       />
       <View style={s.row}>
-        <Pressable style={s.attach} hitSlop={8}><Text style={s.plus}>＋</Text></Pressable>
+        <Pressable
+          style={({ pressed }) => [s.iconBtn, pressed && s.pressed]}
+          hitSlop={8}
+          accessibilityLabel="Attach"
+          onPress={() => Alert.alert('Attachments', 'Attaching files is coming soon.')}
+        >
+          <Ionicons name="add" size={20} color={colors.textMuted} />
+        </Pressable>
         {onToggleAgent && (
-          <Pressable onPress={onToggleAgent} style={[s.chip, agentMode && s.chipOn]} hitSlop={6} accessibilityRole="switch" accessibilityState={{ checked: !!agentMode }}>
-            <Text style={[s.chipGlyph, agentMode && s.chipTextOn]}>✦</Text>
+          <Pressable
+            onPress={onToggleAgent}
+            style={({ pressed }) => [s.chip, agentMode && s.chipOn, pressed && s.pressed]}
+            hitSlop={6}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: !!agentMode }}
+          >
+            <Ionicons name="sparkles-outline" size={13} color={agentMode ? colors.accentDark : colors.textMuted} />
             <Text style={[s.chipText, agentMode && s.chipTextOn]}>Agent</Text>
           </Pressable>
         )}
         <View style={{ flex: 1 }} />
-        <Pressable onPress={busy ? onStop : send} style={[s.send, busy && s.stop]}>
-          <Text style={s.sendGlyph}>{busy ? '■' : '↑'}</Text>
+        <Pressable
+          onPress={busy ? onStop : send}
+          disabled={!busy && !canSend}
+          style={({ pressed }) => [s.send, !busy && !canSend && s.sendOff, pressed && s.pressed]}
+          accessibilityLabel={busy ? 'Stop' : 'Send'}
+        >
+          {busy ? <View style={s.stopSquare} /> : <Ionicons name="arrow-up" size={18} color="#fff" />}
         </Pressable>
       </View>
+    </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  wrap: { margin: space(1.5), padding: space(1), backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 26 },
-  input: { maxHeight: 140, minHeight: 40, paddingVertical: space(0.75), paddingHorizontal: space(1), color: colors.text, ...type.body },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
-  attach: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, borderWidth: 1, borderColor: colors.border },
-  plus: { fontSize: 20, color: colors.textMuted },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 36, paddingHorizontal: space(1.5), borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
-  chipOn: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
-  chipGlyph: { fontSize: 13, color: colors.textMuted },
-  chipText: { ...type.secondary, fontWeight: '600', color: colors.textMuted },
-  chipTextOn: { color: colors.primaryDark },
-  send: { width: 40, height: 40, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  stop: { backgroundColor: colors.primaryDark },
-  sendGlyph: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  shadow: {
+    marginHorizontal: space(1.5),
+    marginBottom: space(1),
+    marginTop: space(0.5),
+    borderRadius: radius.xl,
+    backgroundColor: colors.bg,
+    shadowColor: '#0B3B2A',
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  veil: { backgroundColor: 'rgba(255,255,255,0.82)' },
+  wrap: {
+    overflow: 'hidden',
+    paddingHorizontal: space(1.25),
+    paddingTop: space(1),
+    paddingBottom: space(1),
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+  },
+  input: { ...type.body, lineHeight: LINE, color: colors.text, paddingHorizontal: space(0.5), paddingTop: 6, paddingBottom: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space(1), marginTop: space(0.5) },
+  iconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: colors.border },
+  pressed: { opacity: 0.6 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 30, paddingHorizontal: space(1.25), borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
+  chipOn: { backgroundColor: colors.accentSoft, borderColor: '#BFEBD8' },
+  chipText: { ...type.caption, fontWeight: '500', color: colors.textMuted },
+  chipTextOn: { color: colors.accentDark },
+  send: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  sendOff: { backgroundColor: '#A7E3CC' },
+  stopSquare: { width: 11, height: 11, borderRadius: 2, backgroundColor: '#fff' },
 });

@@ -1,46 +1,66 @@
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, LayoutAnimation, Linking, Platform, Pressable, StyleSheet, Text, UIManager, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { argHint, ChatItem, PlanStep, toolLabel } from '../lib/agent';
 import { colors, radius, space, type } from '../theme';
 
-const STEP_GLYPH: Record<PlanStep['status'], string> = { pending: '○', running: '◐', done: '✓', failed: '✕', skipped: '–' };
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) UIManager.setLayoutAnimationEnabledExperimental(true);
+const toggle = (set: (f: (v: boolean) => boolean) => void) => {
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  set((v) => !v);
+};
+
+function Dot({ status }: { status: 'running' | 'ok' | 'error' | 'pending' | 'skipped' }) {
+  if (status === 'running') return <ActivityIndicator size="small" color={colors.accent} style={s.spinner} />;
+  const color = status === 'ok' ? colors.accent : status === 'error' ? colors.danger : colors.borderStrong;
+  return <View style={[s.dot, { backgroundColor: color }]} />;
+}
+
+const stepDot = (st: PlanStep['status']) => (st === 'done' ? 'ok' : st === 'failed' ? 'error' : st === 'running' ? 'running' : st === 'skipped' ? 'skipped' : 'pending');
 
 export function PlanCard({ steps }: { steps: PlanStep[] }) {
-  const done = steps.filter((s) => s.status === 'done').length;
+  const done = steps.filter((x) => x.status === 'done').length;
+  const running = steps.find((x) => x.status === 'running');
+  const allDone = done === steps.length && steps.length > 0;
+  const [open, setOpen] = useState(!allDone);
   return (
     <View style={s.card}>
-      <View style={s.head}>
-        <Text style={s.eyebrow}>PLAN</Text>
+      <Pressable onPress={() => toggle(setOpen)} style={s.head} hitSlop={4}>
+        <Dot status={allDone ? 'ok' : running ? 'running' : 'pending'} />
+        <Text style={s.label} numberOfLines={1}>{allDone ? 'Plan complete' : running ? running.title : 'Plan'}</Text>
         <Text style={s.meta}>{done}/{steps.length}</Text>
-      </View>
-      {steps.map((st, i) => (
-        <View key={i} style={s.stepRow}>
-          <Text style={[s.stepGlyph, st.status === 'done' && s.ok, st.status === 'failed' && s.bad, st.status === 'running' && s.ok]}>
-            {STEP_GLYPH[st.status]}
-          </Text>
-          <Text style={[s.stepText, (st.status === 'done' || st.status === 'skipped') && s.muted]}>{st.title}</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={15} color={colors.textFaint} />
+      </Pressable>
+      {open && (
+        <View style={s.body}>
+          {steps.map((st, i) => (
+            <View key={i} style={s.stepRow}>
+              <Dot status={stepDot(st.status)} />
+              <Text style={[s.stepText, (st.status === 'done' || st.status === 'skipped') && s.muted]}>{st.title}</Text>
+            </View>
+          ))}
         </View>
-      ))}
+      )}
     </View>
   );
 }
 
 export function ToolCard({ item }: { item: Extract<ChatItem, { kind: 'tool' }> }) {
+  const [open, setOpen] = useState(false);
   const hint = argHint(item.args);
+  const detail = item.summary ?? hint;
   return (
-    <View style={[s.tool, item.depth > 0 && s.nested]}>
-      <View style={[s.dot, item.status === 'ok' && s.dotOk, item.status === 'error' && s.dotBad]}>
-        {item.status === 'running' ? <ActivityIndicator size="small" color={colors.primaryDark} /> : <Text style={s.dotGlyph}>{item.status === 'ok' ? '✓' : '!'}</Text>}
-      </View>
-      <View style={s.flex}>
-        <Text style={s.toolTitle} numberOfLines={1}>
+    <View style={[s.card, item.depth > 0 && s.nested]}>
+      <Pressable onPress={() => detail && toggle(setOpen)} style={s.head} hitSlop={4}>
+        <Dot status={item.status} />
+        <Text style={s.label} numberOfLines={1}>
           {item.depth > 0 ? 'Subtask · ' : ''}{toolLabel(item.name)}
         </Text>
-        {!!(item.summary || hint) && (
-          <Text style={[s.toolSub, item.status === 'error' && s.bad]} numberOfLines={2}>
-            {item.summary ?? hint}
-          </Text>
-        )}
-      </View>
+        {!!detail && <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={15} color={colors.textFaint} />}
+      </Pressable>
+      {open && !!detail && (
+        <Text style={[s.detail, item.status === 'error' && s.bad]} selectable>{detail}</Text>
+      )}
     </View>
   );
 }
@@ -48,13 +68,13 @@ export function ToolCard({ item }: { item: Extract<ChatItem, { kind: 'tool' }> }
 export function ArtifactCard({ item }: { item: Extract<ChatItem, { kind: 'artifact' }> }) {
   const ext = item.name.split('.').pop()?.toUpperCase() ?? 'FILE';
   return (
-    <Pressable style={s.artifact} onPress={() => item.url && Linking.openURL(item.url)}>
+    <Pressable style={({ pressed }) => [s.card, s.artifact, pressed && s.pressed]} onPress={() => item.url && Linking.openURL(item.url).catch(() => {})}>
       <View style={s.fileIcon}><Text style={s.fileExt}>{ext.slice(0, 4)}</Text></View>
       <View style={s.flex}>
-        <Text style={s.toolTitle} numberOfLines={1}>{item.name}</Text>
-        <Text style={s.toolSub}>{(item.size / 1024).toFixed(1)} KB · Tap to open</Text>
+        <Text style={s.label} numberOfLines={1}>{item.name}</Text>
+        <Text style={s.meta}>{(item.size / 1024).toFixed(1)} KB</Text>
       </View>
-      <Text style={s.chev}>↗</Text>
+      <Ionicons name="open-outline" size={17} color={colors.accentDark} />
     </Pressable>
   );
 }
@@ -62,37 +82,56 @@ export function ArtifactCard({ item }: { item: Extract<ChatItem, { kind: 'artifa
 export function ConfirmCard({ item, onReview }: { item: Extract<ChatItem, { kind: 'confirm' }>; onReview: () => void }) {
   const pending = item.state === 'pending';
   return (
-    <Pressable disabled={!pending} onPress={onReview} style={[s.card, pending && s.cardPending]}>
-      <Text style={s.eyebrow}>{pending ? 'NEEDS YOUR APPROVAL' : item.state === 'approved' ? 'APPROVED' : 'DECLINED'}</Text>
-      <Text style={s.stepText}>{item.summary}</Text>
-      {pending && <Text style={[s.meta, s.ok]}>Review →</Text>}
+    <Pressable disabled={!pending} onPress={onReview} style={({ pressed }) => [s.card, pending && s.cardPending, pressed && s.pressed]}>
+      <View style={s.head}>
+        <Dot status={pending ? 'running' : item.state === 'approved' ? 'ok' : 'error'} />
+        <Text style={s.label}>{pending ? 'Needs your approval' : item.state === 'approved' ? 'Approved' : 'Declined'}</Text>
+        {pending && <Text style={s.review}>Review</Text>}
+      </View>
+      <Text style={s.detail}>{item.summary}</Text>
     </Pressable>
+  );
+}
+
+export function ErrorCard({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <View style={[s.card, s.errorCard]}>
+      <View style={s.head}>
+        <Ionicons name="alert-circle-outline" size={16} color={colors.danger} />
+        <Text style={[s.label, { color: colors.danger }]} numberOfLines={3}>{message}</Text>
+      </View>
+      {onRetry && (
+        <Pressable onPress={onRetry} style={({ pressed }) => [s.retry, pressed && s.pressed]} hitSlop={6}>
+          <Ionicons name="refresh" size={14} color={colors.text} />
+          <Text style={s.retryText}>Retry</Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.card, padding: space(1.75), marginVertical: space(0.75), gap: 6 },
-  cardPending: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  head: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
-  eyebrow: { ...type.caption, color: colors.primaryDark, fontWeight: '700', letterSpacing: 0.8 },
+  card: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.bg, paddingHorizontal: space(1.5), paddingVertical: space(1.1), marginVertical: 4, marginLeft: 22 + space(1.25) },
+  nested: { marginLeft: 22 + space(3.5) },
+  cardPending: { borderColor: colors.accent },
+  errorCard: { borderColor: '#F5D0D0', backgroundColor: colors.dangerSoft, gap: space(1), marginLeft: 0 },
+  pressed: { opacity: 0.7 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
+  label: { flex: 1, ...type.secondary, fontSize: 14, color: colors.text, fontWeight: '500' },
   meta: { ...type.caption, color: colors.textMuted },
-  stepRow: { flexDirection: 'row', gap: space(1), alignItems: 'flex-start' },
-  stepGlyph: { width: 16, ...type.secondary, color: colors.textMuted, textAlign: 'center' },
-  stepText: { flex: 1, ...type.secondary, color: colors.text },
+  review: { ...type.caption, color: colors.accentDark, fontWeight: '600' },
+  body: { marginTop: space(1), gap: 6 },
+  stepRow: { flexDirection: 'row', gap: space(1), alignItems: 'center' },
+  stepText: { flex: 1, ...type.caption, fontSize: 14, color: colors.text },
   muted: { color: colors.textMuted },
-  ok: { color: colors.primaryDark },
   bad: { color: colors.danger },
-  tool: { flexDirection: 'row', alignItems: 'center', gap: space(1.25), paddingVertical: space(1), paddingHorizontal: space(1.25), marginVertical: 3, borderRadius: 14, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border },
-  nested: { marginLeft: space(2.5) },
-  dot: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  dotOk: { backgroundColor: colors.primarySoft },
-  dotBad: { backgroundColor: '#FDE2E2' },
-  dotGlyph: { fontSize: 13, fontWeight: '700', color: colors.primaryDark },
-  toolTitle: { ...type.secondary, fontWeight: '600', color: colors.text },
-  toolSub: { ...type.caption, color: colors.textMuted },
-  artifact: { flexDirection: 'row', alignItems: 'center', gap: space(1.5), padding: space(1.5), marginVertical: space(0.75), borderRadius: radius.card, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  fileIcon: { width: 40, height: 46, borderRadius: 8, backgroundColor: colors.brandDeep, alignItems: 'center', justifyContent: 'center' },
-  fileExt: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  chev: { fontSize: 18, color: colors.primaryDark },
+  detail: { ...type.caption, color: colors.textMuted, marginTop: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4, marginHorizontal: 4 },
+  spinner: { transform: [{ scale: 0.7 }], width: 16, height: 16 },
+  artifact: { flexDirection: 'row', alignItems: 'center', gap: space(1.5) },
+  fileIcon: { width: 34, height: 40, borderRadius: 6, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  fileExt: { color: colors.accentDark, fontSize: 10, fontWeight: '700' },
+  retry: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.bg, borderRadius: radius.sm, paddingHorizontal: space(1.25), paddingVertical: 6 },
+  retryText: { ...type.caption, color: colors.text, fontWeight: '600' },
 });

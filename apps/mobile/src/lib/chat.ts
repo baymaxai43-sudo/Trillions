@@ -1,18 +1,12 @@
-import { openSse } from './sse';
+import { openSse, SseHandlers } from './sse';
 
 export type Msg = { role: 'user' | 'assistant'; content: string };
 
-/** Streams a plain chat reply over SSE. Returns a stop() fn. */
-export async function streamChat(
+/** Streams a plain (non-agent) chat reply over SSE. Returns stop(). */
+export function streamChat(
   messages: Msg[],
   opts: { conversationId?: string; model?: string },
-  onEvent: (ev: any) => void,
-): Promise<() => void> {
-  return openSse(
-    'POST',
-    '/v1/chat/stream',
-    { messages, conversationId: opts.conversationId, model: opts.model ?? 'auto' },
-    onEvent,
-    (reason) => reason === 'error' && onEvent({ type: 'error', message: 'Connection lost.' }),
-  );
+  handlers: SseHandlers,
+): () => void {
+  return openSse('POST', '/v1/chat/stream', { messages: messages.slice(-40), conversationId: opts.conversationId, model: opts.model ?? 'auto' }, handlers);
 }
