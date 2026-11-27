@@ -62,6 +62,13 @@ export interface PlanStep {
 
 export type RunStatus = 'queued' | 'running' | 'waiting_approval' | 'completed' | 'failed' | 'cancelled';
 
+/** Providers a user can connect by pasting an access token. */
+export const ConnectorIdSchema = z.enum(['github', 'vercel', 'render', 'supabase', 'netlify']);
+export type ConnectorId = z.infer<typeof ConnectorIdSchema>;
+
+/** Settings areas the agent can change; the app reloads the matching screen. */
+export type SyncScope = 'schedules' | 'memories' | 'connections';
+
 /** Events streamed over SSE by POST /v1/agent/stream and GET /v1/agent/runs/:id/stream. */
 export type AgentEvent = { seq?: number; depth?: number } & (
   | { type: 'meta'; runId: string; conversationId: string; model: string; provider: string }
@@ -73,6 +80,20 @@ export type AgentEvent = { seq?: number; depth?: number } & (
   | { type: 'pending_confirmation'; id: string; tool: string; args: Record<string, unknown>; summary: string }
   | { type: 'confirmation_resolved'; id: string; approved: boolean }
   | { type: 'artifact'; name: string; url: string; mime: string; size: number; path: string }
+  /** Ask the user to paste a token into a secure card (never into the chat). Carries no secrets. */
+  | {
+      type: 'connect_request';
+      id: string;
+      provider: ConnectorId;
+      label: string;
+      reason: string;
+      howTo: string[];
+      tokenUrl: string;
+      connected?: boolean;
+      accountLabel?: string | null;
+    }
+  /** Something the Settings screens show changed (schedules, memories, connections). */
+  | { type: 'state_changed'; scope: SyncScope }
   | { type: 'status'; status: RunStatus }
   | { type: 'usage'; inputTokens: number; outputTokens: number }
   | { type: 'error'; message: string }
