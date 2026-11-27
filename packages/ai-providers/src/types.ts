@@ -44,6 +44,8 @@ export interface ToolCall {
   name: string;
   /** Raw JSON string as produced by the model; parse defensively. */
   arguments: string;
+  /** Provider-specific opaque data to send back unchanged (e.g. Gemini 3 thought signatures). */
+  extra?: Record<string, unknown>;
 }
 
 export type AgentMessage =
@@ -51,7 +53,7 @@ export type AgentMessage =
   | {
       role: 'assistant';
       content: string | null;
-      tool_calls?: { id: string; type: 'function'; function: { name: string; arguments: string } }[];
+      tool_calls?: { id: string; type: 'function'; function: { name: string; arguments: string }; extra_content?: Record<string, unknown> }[];
     }
   | { role: 'tool'; tool_call_id: string; content: string };
 

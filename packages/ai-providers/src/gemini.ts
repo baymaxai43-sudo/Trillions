@@ -1,7 +1,11 @@
+import { openAiCompatible } from './openai-compatible';
 import { readSse } from './sse';
 import { GenerateInput, ProviderAdapter, ProviderError, StreamChunk } from './types';
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
+
+/** Tool calling goes through Gemini's OpenAI-compatible endpoint, keeping thought signatures. */
+const compat = openAiCompatible('gemini', `${BASE}/openai`, {}, { keepExtraContent: true, omitTemperature: true });
 
 export const gemini: ProviderAdapter = {
   id: 'gemini',
@@ -40,4 +44,5 @@ export const gemini: ProviderAdapter = {
     }
     if (usage) yield usage;
   },
+  streamTools: (input, apiKey) => compat.streamTools!(input, apiKey),
 };

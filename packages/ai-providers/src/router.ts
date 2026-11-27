@@ -27,7 +27,14 @@ export function candidates(req: RouteRequest, pool: KeyPool): ModelInfo[] {
   }
   const chars = req.messages.reduce((n, m) => n + m.content.length, 0);
   const order: ModelInfo['tier'][] = chars > 6000 ? ['smart', 'balanced', 'fast'] : ['fast', 'balanced', 'smart'];
-  return [...usable].sort((a, b) => order.indexOf(a.tier) - order.indexOf(b.tier));
+  const byTier = [...usable].sort((a, b) => order.indexOf(a.tier) - order.indexOf(b.tier));
+  // Preferred models go first when usable (keys present, enabled); the rest stay as fallbacks.
+  const preferred = (process.env.AI_PREFERRED_MODELS ?? 'gemini-3.1-pro-preview,gemini-3.1-flash-lite')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const first = preferred.map((id) => byTier.find((m) => m.id === id)).filter((m): m is ModelInfo => !!m);
+  return [...first, ...byTier.filter((m) => !first.includes(m))];
 }
 
 export async function* routeStream(req: RouteRequest, pool: KeyPool): AsyncGenerator<StreamEvent> {

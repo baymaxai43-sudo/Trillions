@@ -371,7 +371,7 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
       if (refreshPrompt) messages[0] = { role: 'system', content: await this.systemPrompt(o) };
 
       let turnText = '';
-      let calls: { id: string; name: string; arguments: string }[] = [];
+      let calls: { id: string; name: string; arguments: string; extra?: Record<string, unknown> }[] = [];
       const filter = new ToolCallTextFilter();
       const show = (t: string) => {
         if (!t) return;
@@ -400,7 +400,7 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
         return { ok: true, text: finalText };
       }
 
-      messages.push({ role: 'assistant', content: turnText || null, tool_calls: calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments || '{}' } })) });
+      messages.push({ role: 'assistant', content: turnText || null, tool_calls: calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments || '{}' }, ...(c.extra ? { extra_content: c.extra } : {}) })) });
       if (turnText && o.depth === 0) this.emit(o.runId, { type: 'delta', text: '\n\n' });
 
       for (const call of calls) {

@@ -10,11 +10,37 @@ import {
   ToolStreamChunk,
 } from './types';
 
-/** Groq and OpenRouter both speak the OpenAI chat-completions dialect. */
+export interface CompatOptions {
+  /** Keep tool_calls[].extra_content in history (Gemini 3 thought signatures). Others get it stripped. */
+  keepExtraContent?: boolean;
+  /** Leave temperature at the provider default (Gemini 3 recommends 1.0). */
+  omitTemperature?: boolean;
+}
+
+const SKIP_SIGNATURE = 'skip_thought_signature_validator';
+
+/** Prepares agent history for a provider: strips or fills provider-specific tool-call data. */
+export function prepareMessages(messages: ToolGenerateInput['messages'], keepExtra: boolean): unknown[] {
+  return messages.map((m) => {
+    if (m.role !== 'assistant' || !('tool_calls' in m) || !m.tool_calls?.length) return m;
+    const tool_calls = m.tool_calls.map((tc, i) => {
+      const { extra_content, ...rest } = tc;
+      if (!keepExtra) return rest;
+      if (extra_content) return { ...rest, extra_content };
+      // Gemini 3 validates a signature on the first call of each step; history from another
+      // provider has none, so use Google's documented bypass value for that one call.
+      return i === 0 ? { ...rest, extra_content: { google: { thought_signature: SKIP_SIGNATURE } } } : rest;
+    });
+    return { ...m, tool_calls };
+  });
+}
+
+/** Groq, OpenRouter and Gemini's OpenAI-compatible endpoint all speak the chat-completions dialect. */
 export function openAiCompatible(
   id: ProviderId,
   baseUrl: string,
   extraHeaders: Record<string, string> = {},
+  opts: CompatOptions = {},
 ): ProviderAdapter {
   return {
     id,
@@ -30,7 +56,7 @@ export function openAiCompatible(
         body: JSON.stringify({
           model: input.model,
           messages: input.messages,
-          temperature: input.temperature ?? 0.7,
+          ...(opts.omitTemperature ? {} : { temperature: input.temperature ?? 0.7 }),
           max_tokens: input.maxTokens,
           stream: true,
           stream_options: { include_usage: true },
@@ -62,8 +88,8 @@ export function openAiCompatible(
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', ...extraHeaders },
         body: JSON.stringify({
           model: input.model,
-          messages: input.messages,
-          temperature: input.temperature ?? 0.4,
+          messages: prepareMessages(input.messages, !!opts.keepExtraContent),
+          ...(opts.omitTemperature ? {} : { temperature: input.temperature ?? 0.4 }),
           max_tokens: input.maxTokens,
           stream: true,
           stream_options: { include_usage: true },
@@ -104,6 +130,7 @@ export async function* parseToolStream(lines: AsyncIterable<string>): AsyncGener
       if (tc.id) cur.id = tc.id;
       if (tc.function?.name) cur.name += tc.function.name;
       if (tc.function?.arguments) cur.arguments += tc.function.arguments;
+      if (tc.extra_content && typeof tc.extra_content === 'object') cur.extra = { ...(cur.extra ?? {}), ...tc.extra_content };
       calls.set(idx, cur);
     }
     if (choice?.finish_reason) finish = choice.finish_reason;
