@@ -3,6 +3,7 @@ import { createRemoteJWKSet, jwtVerify, JWTVerifyGetKey } from 'jose';
 
 export interface AuthedRequest {
   headers: Record<string, string | undefined>;
+  socket?: import('net').Socket;
   user: { id: string; token: string };
 }
 
