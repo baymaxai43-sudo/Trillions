@@ -29,6 +29,15 @@ npm run dev:api             # http://localhost:4000/health
 npm run dev:mobile          # Expo dev server; press "a" for Android
 ```
 
+## Connecting accounts
+
+TRILLION connects to developer tools with **access tokens the user pastes** (no OAuth apps, no client secrets):
+GitHub (fine-grained or classic PAT), Vercel (access token), Render (API key), Supabase (personal access token,
+Management API) and Netlify (personal access token). Ask the agent "connect my GitHub" and it shows a secure paste
+card in the chat, or use Settings → Accounts. Tokens are validated with the provider, encrypted (AES-256-GCM,
+HKDF-derived key from `CONNECTOR_ENC_KEY`) and never returned to clients or shown to the model.
+Gmail is not available: Google only issues hourly tokens. See [docs/agent-harness.md](docs/agent-harness.md).
+
 ## Roadmap
 
 1. **Foundation**: monorepo, auth, schema, CI  ← *we are here*

@@ -33,9 +33,9 @@ SchedulerService (60 s tick) ── due scheduled_tasks ─▶ AgentRunner.start
 | Endpoints | `services/api/src/agent/agent.controller.ts` |
 | Scheduler | `services/api/src/agent/scheduler.service.ts`, `schedule-util.ts` |
 | Tools | `services/api/src/agent/tools/*` |
-| Connectors (OAuth, encrypted tokens) | `services/api/src/connect/*` |
+| Connectors (pasted tokens, encrypted) | `services/api/src/connect/*` |
 | Schema | `supabase/migrations/20261127000002_agent_harness.sql` (**applied** to project `ochdlfnhvpbgmtyqotxb`) |
-| Mobile | `app/index.tsx` (agent mode), `app/connections.tsx`, `src/components/AgentCards.tsx`, `ConfirmSheet.tsx`, `src/lib/{agent,api,sse}.ts` |
+| Mobile | `app/index.tsx` (agent mode), `app/connections.tsx`, `app/settings/{schedules,memory}.tsx`, `src/components/{AgentCards,ConnectCard,ConfirmSheet}.tsx`, `src/lib/{agent,api,sse,sync,connectors}.ts` |
 
 ### Models
 Agent turns need `tools` capability: **Groq `openai/gpt-oss-20b`** first, **OpenRouter `openai/gpt-oss-120b`** as
@@ -55,18 +55,26 @@ All routes are under `/v1` and need `Authorization: Bearer <supabase access toke
 | POST | `/agent/runs/:id/cancel` | Cancel a live run. |
 | GET | `/agent/runs`, `/agent/runs/:id` | List runs / run + steps (RLS, user's own). |
 | GET | `/agent/tools` | Tools available to this user right now. |
-| GET / DELETE | `/agent/schedules`, `/agent/schedules/:id` | Scheduled prompts. |
-| GET | `/connect/providers` | Providers + connected status (no tokens). |
-| GET | `/connect/:provider/start` | `{ url }` authorize URL with signed `state` (HMAC, 10 min). |
-| GET | `/connect/:provider/callback` | **No auth header** (state identifies the user). Exchanges code, stores encrypted token, redirects to `trillion://connections?provider=…&status=ok|error`. |
-| POST | `/connect/:provider/key` | `{ apiKey }` paste flow: Render API key; Vercel / GitHub personal-token fallback. Validated before saving. |
+| GET | `/agent/schedules` | Scheduled tasks with `last_run {status, finished_at, error}`. |
+| PATCH | `/agent/schedules/:id` | `{ enabled }` pause / resume (resume recomputes `next_run_at`). |
+| DELETE | `/agent/schedules/:id` | Delete a scheduled task. |
+| GET | `/memories` | Confirmed + pending memories. |
+| POST | `/memories/:id/confirm` | Confirm a pending memory (only confirmed ones reach prompts). |
+| DELETE | `/memories/:id` | Delete a memory. |
+| GET | `/connect/providers` | Providers (`github, vercel, render, supabase, netlify`) with how-to steps, token URL and connected status (no tokens). |
+| POST | `/connect/:provider/key` | `{ apiKey }` pasted token. Validated against the provider, encrypted, upserted. |
 | DELETE | `/connect/:provider` | Disconnect. |
+
+OAuth start/callback routes were removed: every connector is a pasted token.
 
 ### SSE events (`data: <json>`; each has `seq`, subagent events have `depth > 0`)
 `meta {runId, conversationId, model, provider}` · `plan {steps:[{title,status}]}` · `step_status {index,status}` ·
 `delta {text}` · `tool_call {id,name,args}` · `tool_result {id,name,ok,summary}` ·
 `pending_confirmation {id,tool,args,summary}` · `confirmation_resolved {id,approved}` ·
-`artifact {name,url,mime,size,path}` · `status {status}` · `error {message}` · `done {status}`.
+`artifact {name,url,mime,size,path}` · `connect_request {id,provider,label,reason,howTo,tokenUrl,connected,accountLabel}` ·
+`state_changed {scope: schedules|memories|connections}` · `status {status}` · `error {message}` · `done {status}`.
+`connect_request` is persisted as an `agent_steps` row (`kind=message`, `data.event`, no secrets) and replayed on reattach
+with the current connection state. The app turns `state_changed` into a reload of the matching Settings screen.
 Heartbeat comments (`: ping`) every 15 s keep Render's proxy from closing idle streams.
 
 ---
@@ -86,18 +94,32 @@ Heartbeat comments (`: ping`) every 15 s keep Render's proxy from closing idle s
 | `list_scheduled_tasks` | – | |
 | `cancel_scheduled_task` | ✅ | |
 | `run_code` | ✅ | **Off by default** (see §6) |
-| `github_list_repos`, `github_get_file`, `github_list_pull_requests` | – | |
-| `github_create_or_update_file`, `github_create_issue`, `github_create_pull_request` | ✅ | |
-| `gmail_search`, `gmail_read` | – | |
-| `gmail_send` | ✅ | header-injection safe (CR/LF stripped), UTF-8 subject |
-| `vercel_list_projects`, `vercel_list_deployments` | – | |
+| `request_connection` | – | shows the secure paste card (`connect_request`); the token goes from the card to `/connect/:provider/key`, never through the model |
+| `github_list_repos`, `github_get_repo`, `github_list_tree` (recursive, ≤600 entries), `github_get_file` (ref, line range), `github_search_code`, `github_list_branches`, `github_list_pull_requests`, `github_get_pull_request` (files + capped patches), `github_list_issues`, `github_list_workflow_runs`, `github_get_run_logs` (failed jobs, tail) | – | |
+| `github_create_branch`, `github_create_or_update_file`, `github_commit_files` (multi-file commit via git data API, ≤50 files / 1 MB, non-forced ref update), `github_create_pull_request`, `github_comment`, `github_create_issue`, `github_merge_pull_request` | ✅ | |
+| `vercel_list_projects`, `vercel_list_deployments`, `vercel_get_deployment_logs`, `vercel_list_env_names` (names only, never values) | – | optional `teamId` |
 | `vercel_trigger_deploy` | ✅ | redeploys the latest deployment to production |
-| `render_list_services`, `render_get_logs` | – | |
-| `render_trigger_deploy` | ✅ | |
+| `render_list_services`, `render_list_deploys`, `render_get_logs` | – | |
+| `render_trigger_deploy`, `render_restart_service` | ✅ | |
+| `supabase_list_projects`, `supabase_list_functions`, `supabase_query` (single read-only statement, `read_only: true` role + local check) | – | |
+| `supabase_execute_sql` | ✅ | write SQL |
+| `netlify_list_sites`, `netlify_list_deploys` | – | |
+| `netlify_trigger_build` | ✅ | |
+| `gmail_*` | – | **disabled** (Google needs OAuth; code kept) |
 | `update_plan_step`, `replan` | – | internal planner tools, not shown as cards |
 
-Connector tools are offered only when that provider is connected. The system prompt tells the model to treat
-web / email / repo content as untrusted data (prompt-injection guard) and never to retry a declined action.
+Connector tools are offered only when that provider is connected (the list refreshes mid-run when a token is saved).
+
+### Prompt-injection containment
+- Every tool result reaches the model inside `<untrusted_data source="tool">…</untrusted_data>`; the system prompt
+  says content there is data, never instructions. Known secret formats are redacted from tool output, tool args
+  (events + `agent_steps`) and user messages (a pasted token becomes `[REDACTED …]` and the model advises rotating it).
+- Per-run `touchedPrivate` is set after any private read (every provider tool, `recall`). After that, `fetch_url`
+  needs approval unless the URL (minus query/fragment) came from this run's `web_search` results or the user's
+  own messages, and the query string is stripped.
+- `remember` saves `confirmed=false` when the run read web or private data; only confirmed memories are injected.
+- Scheduled runs auto-decline approval-required tools immediately (no 30-minute wait) and tell the model to report it.
+- Tool-call/planner JSON written as text (`{"name"…`, `<function=…>`, `{"steps"…`) is stripped from the delta stream.
 
 ### Approval flow
 Tool with `confirm: true` → runner emits `pending_confirmation`, writes an `agent_steps` row (`kind=confirmation,
@@ -115,10 +137,11 @@ hint to do so). Completed steps are kept on replan. Plan persists in `agent_runs
 
 - `agent_runs`: status, goal, plan, model/provider, tokens, result/error, parent/scheduled links. Clients **read only**.
 - `agent_steps`: plan / tool_result / confirmation rows per run. Clients **read only**.
-- `connections`: per-user provider tokens, **AES-256-GCM** encrypted with `CONNECTOR_ENC_KEY`
-  (`v1:` + base64(iv|tag|ct)). `anon`/`authenticated` have **no grant on the ciphertext columns**; users can only
+- `connections`: per-user provider tokens, **AES-256-GCM**. New blobs are `v2:` + base64(iv|tag|ct) with an
+  HKDF-SHA256 subkey of `CONNECTOR_ENC_KEY` (separate subkey for HMAC); legacy `v1:` blobs still decrypt and are
+  re-encrypted as v2 on first use. `anon`/`authenticated` have **no grant on the ciphertext columns**; users can only
   see provider/label/timestamps and delete their own rows.
-- `scheduled_tasks`: owner full access (can disable/delete).
+- `scheduled_tasks`: owners can select, delete and update `enabled` only; inserts only via the API. Max 10 enabled per owner (trigger).
 - `memories`: existing table + generated `fts` column and GIN index.
 - Storage bucket `artifacts` (private, 5 MB limit), read/delete policies scoped to the `<uid>/` folder.
 
@@ -132,42 +155,22 @@ The API writes these with the **service role** (runs outlive the user's 1-hour J
 |---|---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | **Yes** | Agent persistence, connectors, storage, scheduler. Without it agent runs fail to start. |
 | `CONNECTOR_ENC_KEY` | **Yes** | `openssl rand -base64 32`. Losing/rotating it invalidates all stored connections. |
-| `API_PUBLIC_URL` | default ok | `https://trillion-api.onrender.com` (builds OAuth redirect URIs) |
-| `APP_REDIRECT_URL` | default ok | `trillion://connections` |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | for GitHub | OAuth App |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | for Gmail | Google OAuth client (Web) |
-| `VERCEL_CLIENT_ID` / `VERCEL_CLIENT_SECRET` / `VERCEL_INTEGRATION_SLUG` | optional | Vercel integration; without them users paste a token |
 | `TAVILY_API_KEY` or `BRAVE_API_KEY` | optional | enables `web_search` |
 | `AGENT_MAX_STEPS` (12), `AGENT_MAX_ACTIVE` (20), `AGENT_SCHEDULER` (`off` to disable) | optional | tuning |
 | `AGENT_ENABLE_CODE` + `E2B_API_KEY` | optional | code execution (not wired yet) |
 
-Render API keys are **per user** (pasted in the app), not a server env var.
+Provider tokens are **per user** (pasted in the app), not server env vars. No OAuth client IDs/secrets are needed.
+`SUPABASE_URL` also sets the expected JWT issuer (`<SUPABASE_URL>/auth/v1`); tokens must have `aud=authenticated`.
 
-### Create the OAuth apps
+### Token scopes users need
 
-**GitHub OAuth App** – github.com → Settings → Developer settings → OAuth Apps → New OAuth App
-- Homepage URL: `https://trillion-api.onrender.com`
-- Authorization callback URL: `https://trillion-api.onrender.com/v1/connect/github/callback`
-- Copy Client ID, generate a Client secret → `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`. Scopes requested: `repo read:user`.
-
-**Google (Gmail)** – console.cloud.google.com
-1. Create/select a project → APIs & Services → Library → enable **Gmail API**.
-2. OAuth consent screen: External, app name TRILLION, support email, add scopes
-   `https://www.googleapis.com/auth/gmail.readonly` and `https://www.googleapis.com/auth/gmail.send`.
-3. Add **test users** (your Gmail addresses). In Testing mode only listed test users (max 100) can connect and
-   refresh tokens expire after 7 days.
-4. Credentials → Create credentials → OAuth client ID → **Web application** → Authorized redirect URI
-   `https://trillion-api.onrender.com/v1/connect/google/callback` → `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-5. Gmail scopes are **restricted**: going public needs Google verification + an annual third-party security
-   assessment (CASA). Plan for this before launch.
-
-**Vercel integration** (optional) – vercel.com/dashboard/integrations/console → Create
-- Redirect URL: `https://trillion-api.onrender.com/v1/connect/vercel/callback`
-- Scopes: Projects (read), Deployments (read/write).
-- Copy Client ID / Secret and the integration **slug** (from `vercel.com/integrations/<slug>`).
-- Without this, users tap **Add key** and paste a Vercel token (Account → Tokens).
-
-**Render** – nothing to create. Users paste an API key (Render → Account settings → API keys).
+| Provider | Where | Permissions |
+|---|---|---|
+| GitHub | Settings → Developer settings → Personal access tokens | Fine-grained: selected repos; Contents, Pull requests, Issues = read/write; Actions, Metadata = read; Workflows = read/write only to edit `.github/workflows`. Classic: `repo`, `workflow`. |
+| Vercel | Account Settings → Tokens | Scope to the personal account or the team that owns the projects. |
+| Render | Account Settings → API Keys | Full account (Render keys are not scoped). |
+| Supabase | Account → Access Tokens | Personal access token (Management API; all projects in the user's orgs). |
+| Netlify | User settings → Applications → Personal access tokens | Full account. |
 
 ---
 
@@ -181,11 +184,11 @@ Render API keys are **per user** (pasted in the app), not a server env var.
 - Event buffer lives in memory (≤5000 events/run, evicted 15 min after finish); after eviction, reattach replays
   the persisted summary (plan, tool results, final text), not every delta.
 - Concurrency caps: 3 live runs per user, 20 total.
-- `fetch_url` SSRF guard checks DNS before the request; a DNS-rebinding race is theoretically possible.
-  Hardening: pin the resolved IP with a custom `undici` dispatcher.
+- `fetch_url` SSRF guard: `ipaddr.js` unicast-only classification (incl. IPv4-mapped, NAT64, 6to4, Teredo, CGNAT),
+  DNS resolved once and the socket pinned to the checked IP, every redirect hop re-checked, standard ports only.
 
 **Not done yet / TODO**
-- **Not tested end-to-end against live models or real OAuth apps** (no provider keys or OAuth apps available in
+- **Not tested end-to-end against live models or real provider tokens** (none available in
   the build sandbox). Verified: typecheck (api, mobile, ai-providers), Nest boots with all routes mapped, and unit
   smoke tests for the tool-call stream parser, AES-GCM/state signing, schedule math, SSRF guard, HTML stripping.
 - `run_code`: interface + gating only. E2B needs its SDK (sandbox create + envd process RPC); add
@@ -196,5 +199,5 @@ Render API keys are **per user** (pasted in the app), not a server env var.
 - Mobile: no conversation history/resume screen for past runs yet; artifacts open via signed URL in the browser.
 - Usage/credits: tokens are stored on `agent_runs`, but nothing is written to `usage_records` yet.
 - Scaling path: BullMQ + Redis for runs, Redis pub/sub for events, so multiple instances can share runs.
-- Vercel integration flow and Render logs endpoint are coded from API docs and untested.
-- CI workflow still parked in `docs/ci/ci.yml` (token lacks `workflow` scope).
+- Provider tools (Vercel logs/env, Render restart, Supabase SQL, Netlify builds) are coded from API docs and untested against live accounts.
+- CI lives in `.github/workflows/ci.yml` (typechecks shared, ai-providers, api and mobile).
