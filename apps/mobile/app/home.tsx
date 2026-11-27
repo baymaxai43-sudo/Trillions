@@ -7,13 +7,13 @@ import { colors, radius, space, type } from '../src/theme';
 /** Home: glanceable panels. Placeholder data until the panels API exists. */
 const PANELS = [
   { title: 'Credits left', value: '—', note: 'Plans arrive in Phase 6' },
-  { title: 'Active tasks', value: '0', note: 'Agent beta: Phase 4' },
+  { title: 'Agent', value: 'Beta', note: 'Turn on Agent in the composer. Connect accounts via your avatar.' },
 ];
 
 export default function Home() {
   return (
     <SafeAreaView style={s.safe}>
-      <TopBar title="Home" onHome={() => router.back()} />
+      <TopBar title="Home" onHome={() => router.back()} onProfile={() => router.push('/connections')} />
       <ScrollView contentContainerStyle={s.grid}>
         {PANELS.map((p) => (
           <View key={p.title} style={s.panel}>

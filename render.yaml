@@ -28,5 +28,31 @@ services:
         sync: false
       - key: GEMINI_API_KEYS
         sync: false
+      - key: CONNECTOR_ENC_KEY
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: VERCEL_CLIENT_ID
+        sync: false
+      - key: VERCEL_CLIENT_SECRET
+        sync: false
+      - key: VERCEL_INTEGRATION_SLUG
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: BRAVE_API_KEY
+        sync: false
+      - key: E2B_API_KEY
+        sync: false
+      - key: API_PUBLIC_URL
+        value: https://trillion-api.onrender.com
+      - key: AGENT_ENABLE_CODE
+        value: "false"
       - key: CORS_ORIGINS
         value: ""
