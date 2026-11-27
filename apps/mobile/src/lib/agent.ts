@@ -1,5 +1,6 @@
 import { apiFetch } from './api';
 import type { Msg } from './chat';
+import type { ProviderId } from './connectors';
 import { openSse, SseHandlers } from './sse';
 
 export type PlanStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped';
@@ -13,6 +14,17 @@ export type ChatItem = { key?: string } & (
   | { kind: 'tool'; id: string; name: string; args: Record<string, unknown>; status: 'running' | 'ok' | 'error'; summary?: string; depth: number }
   | { kind: 'artifact'; name: string; url: string; mime: string; size: number }
   | { kind: 'confirm'; id: string; tool: string; summary: string; args: Record<string, unknown>; state: 'pending' | 'approved' | 'declined' }
+  | {
+      kind: 'connect';
+      id: string;
+      provider: ProviderId;
+      label: string;
+      reason: string;
+      howTo: string[];
+      tokenUrl: string;
+      connected: boolean;
+      accountLabel: string | null;
+    }
   | { kind: 'error'; message: string }
 );
 
@@ -67,27 +79,51 @@ export const TOOL_LABELS: Record<string, string> = {
   list_scheduled_tasks: 'Listing scheduled tasks',
   cancel_scheduled_task: 'Cancelling a scheduled task',
   run_code: 'Running code',
+  request_connection: 'Requesting a connection',
   github_list_repos: 'Listing GitHub repos',
+  github_get_repo: 'Reading repo details',
+  github_list_tree: 'Mapping the repo',
   github_get_file: 'Reading from GitHub',
+  github_search_code: 'Searching code',
+  github_list_branches: 'Listing branches',
+  github_create_branch: 'Creating a branch',
   github_create_or_update_file: 'Committing to GitHub',
+  github_commit_files: 'Committing files',
   github_create_issue: 'Opening a GitHub issue',
+  github_list_issues: 'Listing issues',
   github_list_pull_requests: 'Listing pull requests',
+  github_get_pull_request: 'Reviewing a pull request',
   github_create_pull_request: 'Opening a pull request',
-  gmail_search: 'Searching Gmail',
-  gmail_read: 'Reading an email',
-  gmail_send: 'Sending an email',
+  github_comment: 'Commenting on GitHub',
+  github_merge_pull_request: 'Merging a pull request',
+  github_list_workflow_runs: 'Checking CI runs',
+  github_get_run_logs: 'Reading CI logs',
   vercel_list_projects: 'Listing Vercel projects',
   vercel_list_deployments: 'Listing Vercel deployments',
+  vercel_get_deployment_logs: 'Reading Vercel build logs',
+  vercel_list_env_names: 'Listing Vercel env names',
   vercel_trigger_deploy: 'Deploying on Vercel',
   render_list_services: 'Listing Render services',
+  render_list_deploys: 'Listing Render deploys',
   render_trigger_deploy: 'Deploying on Render',
+  render_restart_service: 'Restarting a Render service',
   render_get_logs: 'Reading Render logs',
+  supabase_list_projects: 'Listing Supabase projects',
+  supabase_query: 'Querying Supabase (read-only)',
+  supabase_execute_sql: 'Running SQL on Supabase',
+  supabase_list_functions: 'Listing edge functions',
+  netlify_list_sites: 'Listing Netlify sites',
+  netlify_list_deploys: 'Listing Netlify deploys',
+  netlify_trigger_build: 'Building on Netlify',
 };
 
 export const toolLabel = (name: string) => TOOL_LABELS[name] ?? name.replace(/_/g, ' ');
 
 /** A short, human hint of the args (e.g. the URL or query). */
 export function argHint(args: Record<string, unknown>): string {
-  const v = args.url ?? args.query ?? args.path ?? args.filename ?? args.goal ?? args.to ?? args.repo ?? args.serviceId ?? args.projectId ?? args.fact;
+  const repo = args.owner && args.repo ? `${args.owner}/${args.repo}` : args.repo;
+  const v =
+    args.url ?? args.query ?? args.path ?? args.filename ?? args.goal ?? args.to ?? (args.number ? `${repo} #${args.number}` : repo) ??
+    args.serviceId ?? args.projectId ?? args.deploymentId ?? args.project_ref ?? args.site_id ?? args.provider ?? args.fact;
   return v ? String(v).slice(0, 80) : '';
 }

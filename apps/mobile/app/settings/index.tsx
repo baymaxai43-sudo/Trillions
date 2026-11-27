@@ -53,6 +53,7 @@ export default function Settings() {
           <Section>
             <Row icon="person-outline" label="Profile" onPress={() => router.push('/settings/profile')} />
             <Row icon="time-outline" label="Scheduled Tasks" onPress={() => router.push('/settings/schedules')} />
+            <Row icon="sparkles-outline" label="What TRILLION knows" onPress={() => router.push('/settings/memory')} />
             <Row icon="link-outline" label="Accounts" onPress={() => router.push('/connections')} last />
           </Section>
 

@@ -1,93 +1,47 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, LayoutAnimation, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GlassBackdrop } from '../src/components/Glass';
-import { useLocalSearchParams } from 'expo-router';
-import * as Linking from 'expo-linking';
-import * as WebBrowser from 'expo-web-browser';
+import { useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { GlassBackdrop, Glass } from '../src/components/Glass';
 import { BackHeader } from '../src/components/TopBar';
-import { apiFetch } from '../src/lib/api';
-import { colors, radius, space, type } from '../src/theme';
+import { HowTo, ProviderMark, TokenForm } from '../src/components/ConnectCard';
+import { disconnectProvider, listProviders, Provider, ProviderId } from '../src/lib/connectors';
+import { useSync } from '../src/lib/sync';
+import { colors, space, type } from '../src/theme';
 
-type Provider = {
-  id: 'github' | 'google' | 'vercel' | 'render';
-  label: string;
-  kind: 'oauth' | 'api_key';
-  configured: boolean;
-  description: string;
-  connected: boolean;
-  accountLabel: string | null;
-};
-
-const MONO: Record<Provider['id'], string> = { github: 'GH', google: 'M', vercel: '▲', render: 'R' };
-const KEY_HINT: Record<string, string> = {
-  render: 'Render → Account settings → API keys',
-  vercel: 'Vercel → Account settings → Tokens',
-};
-
+/** Token-only connections: paste an access token per provider; nothing is stored on the phone. */
 export default function Connections() {
-  const params = useLocalSearchParams<{ provider?: string; status?: string; message?: string }>();
   const [list, setList] = useState<Provider[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [working, setWorking] = useState<string | null>(null);
-  const [keyFor, setKeyFor] = useState<Provider['id'] | null>(null);
-  const [key, setKey] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [open, setOpen] = useState<ProviderId | null>(null);
+  const [working, setWorking] = useState<ProviderId | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
-      setList(await apiFetch<Provider[]>('/v1/connect/providers'));
-    } catch (err) {
-      Alert.alert('Could not load connections', (err as Error).message);
-    } finally {
-      setLoading(false);
+      setList(await listProviders());
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+      setList((l) => l ?? []);
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
+  useSync(['connections'], load);
 
-  // Arrived via the trillion://connections deep link after OAuth.
-  useEffect(() => {
-    if (params.status === 'error') Alert.alert('Not connected', params.message ?? 'Something went wrong.');
-    if (params.status) load();
-  }, [params.status, params.message, load]);
-
-  const connectOAuth = async (p: Provider) => {
-    setWorking(p.id);
-    try {
-      const { url } = await apiFetch<{ url: string }>(`/v1/connect/${p.id}/start`);
-      const result = await WebBrowser.openAuthSessionAsync(url, Linking.createURL('connections'));
-      if (result.type === 'success') {
-        const q = Linking.parse(result.url).queryParams ?? {};
-        if (q.status === 'error') Alert.alert('Not connected', String(q.message ?? 'Something went wrong.'));
-      }
-      await load();
-    } catch (err) {
-      Alert.alert('Could not connect', (err as Error).message);
-    } finally {
-      setWorking(null);
-    }
-  };
-
-  const saveKey = async () => {
-    if (!keyFor || key.trim().length < 10) return;
-    setWorking(keyFor);
-    try {
-      await apiFetch(`/v1/connect/${keyFor}/key`, { method: 'POST', body: { apiKey: key.trim() } });
-      setKey('');
-      setKeyFor(null);
-      await load();
-    } catch (err) {
-      Alert.alert('Key not accepted', (err as Error).message);
-    } finally {
-      setWorking(null);
-    }
+  const toggle = (id: ProviderId) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpen((o) => (o === id ? null : id));
   };
 
   const disconnect = (p: Provider) =>
-    Alert.alert(`Disconnect ${p.label}?`, 'TRILLION will lose access until you connect again.', [
+    Alert.alert(`Disconnect ${p.label}?`, 'TRILLION loses access until you paste a token again. Also revoke the token at the provider if you no longer use it.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Disconnect',
@@ -95,8 +49,10 @@ export default function Connections() {
         onPress: async () => {
           setWorking(p.id);
           try {
-            await apiFetch(`/v1/connect/${p.id}`, { method: 'DELETE' });
+            await disconnectProvider(p.id);
             await load();
+          } catch (e) {
+            Alert.alert('Could not disconnect', (e as Error).message);
           } finally {
             setWorking(null);
           }
@@ -104,94 +60,86 @@ export default function Connections() {
       },
     ]);
 
-  const onConnect = (p: Provider) => {
-    if (p.kind === 'api_key' || (p.id === 'vercel' && !p.configured)) return setKeyFor(p.id);
-    if (!p.configured) return Alert.alert(`${p.label} isn't set up yet`, 'The server needs its OAuth app credentials first.');
-    connectOAuth(p);
-  };
-
   return (
     <GlassBackdrop>
-
-    <SafeAreaView style={s.safe}>
-      <BackHeader title="Connected accounts" />
-      <ScrollView contentContainerStyle={s.body} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.primary} />}>
-        <Text style={s.lead}>Let the agent work in your accounts. Tokens are encrypted on the server and never stored on this phone. Anything that sends, commits or deploys asks you first.</Text>
-        {!list && loading && <ActivityIndicator color={colors.primary} style={{ marginTop: space(4) }} />}
-        {list?.map((p) => (
-          <View key={p.id} style={s.card}>
-            <View style={s.row}>
-              <View style={[s.logo, p.connected && s.logoOn]}>
-                <Text style={[s.logoText, p.connected && s.logoTextOn]}>{MONO[p.id]}</Text>
-              </View>
-              <View style={s.flex}>
-                <Text style={s.name}>{p.label}</Text>
-                <Text style={s.desc} numberOfLines={2}>
-                  {p.connected ? `Connected${p.accountLabel ? ` as ${p.accountLabel}` : ''}` : p.description}
-                </Text>
-              </View>
-              {working === p.id ? (
-                <ActivityIndicator color={colors.primary} />
-              ) : p.connected ? (
-                <Pressable onPress={() => disconnect(p)} style={[s.btn, s.btnGhost]}>
-                  <Text style={s.btnGhostText}>Disconnect</Text>
+      <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
+        <BackHeader title="Accounts" />
+        <ScrollView
+          contentContainerStyle={s.body}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.ink} />}
+        >
+          <Text style={s.lead}>
+            Connect with an access token you create at each provider. Tokens are verified, encrypted on the server and never shown to the AI. Anything that commits, deploys or changes data asks you first.
+          </Text>
+          {list === null && <ActivityIndicator color={colors.ink} style={{ marginTop: space(4) }} />}
+          {!!error && <Text style={s.error}>{error}</Text>}
+          {list?.map((p) => {
+            const expanded = open === p.id;
+            return (
+              <Glass key={p.id} style={s.card} padded={false}>
+                <Pressable onPress={() => toggle(p.id)} style={({ pressed }) => [s.row, pressed && s.pressed]}>
+                  <ProviderMark id={p.id} on={p.connected} />
+                  <View style={s.flex}>
+                    <Text style={s.name}>{p.label}</Text>
+                    <Text style={s.desc} numberOfLines={2}>
+                      {p.connected ? `Connected${p.accountLabel ? ` as ${p.accountLabel}` : ''}` : p.description}
+                    </Text>
+                  </View>
+                  {working === p.id ? (
+                    <ActivityIndicator color={colors.ink} />
+                  ) : p.connected ? (
+                    <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                  ) : (
+                    <View style={s.pill}><Text style={s.pillText}>Connect</Text></View>
+                  )}
                 </Pressable>
-              ) : (
-                <Pressable onPress={() => onConnect(p)} style={[s.btn, !p.configured && p.kind === 'oauth' && p.id !== 'vercel' && s.btnDisabled]}>
-                  <Text style={s.btnText}>{p.kind === 'api_key' || (p.id === 'vercel' && !p.configured) ? 'Add key' : 'Connect'}</Text>
-                </Pressable>
-              )}
-            </View>
-            {keyFor === p.id && (
-              <View style={s.keyBox}>
-                <TextInput
-                  style={s.input}
-                  value={key}
-                  onChangeText={setKey}
-                  placeholder={p.id === 'render' ? 'rnd_…' : 'Paste token'}
-                  placeholderTextColor={colors.textMuted}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  secureTextEntry
-                />
-                <Text style={s.hint}>{KEY_HINT[p.id] ?? ''}</Text>
-                <View style={s.row}>
-                  <Pressable onPress={() => { setKeyFor(null); setKey(''); }} style={[s.btn, s.btnGhost, s.flex]}>
-                    <Text style={s.btnGhostText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable onPress={saveKey} style={[s.btn, s.flex]}>
-                    <Text style={s.btnText}>Save</Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          </View>
-        ))}
-      </ScrollView>
-    </SafeAreaView>
+                {expanded && (
+                  <View style={s.expand}>
+                    {!p.connected && <HowTo steps={p.howTo} tokenUrl={p.tokenUrl} label={p.label} />}
+                    {p.connected && <Text style={s.desc}>Paste a new token to replace the current one, or disconnect.</Text>}
+                    <TokenForm
+                      provider={p.id}
+                      label={p.label}
+                      placeholder={p.placeholder}
+                      onSaved={async () => {
+                        setOpen(null);
+                        await load();
+                      }}
+                    />
+                    {p.connected && (
+                      <Pressable onPress={() => disconnect(p)} style={({ pressed }) => [s.disconnect, pressed && s.pressed]}>
+                        <Ionicons name="unlink-outline" size={16} color={colors.danger} />
+                        <Text style={s.disconnectText}>Disconnect {p.label}</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+              </Glass>
+            );
+          })}
+          <Text style={s.note}>Gmail isn’t available: Google only issues short-lived tokens, so it can’t be connected by pasting one.</Text>
+        </ScrollView>
+      </SafeAreaView>
     </GlassBackdrop>
   );
 }
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: 'transparent' },
-  body: { padding: space(2), gap: space(1.5) },
-  lead: { ...type.secondary, color: colors.textMuted, marginBottom: space(0.5) },
+  body: { paddingHorizontal: space(2), paddingBottom: space(5), gap: space(1.5) },
+  lead: { ...type.secondary, color: colors.textMuted, marginBottom: space(0.5), marginHorizontal: space(0.5) },
+  error: { ...type.caption, color: colors.danger, marginHorizontal: space(0.5) },
   flex: { flex: 1 },
-  card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: space(1.75), gap: space(1.5) },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space(1.5) },
-  logo: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  logoOn: { backgroundColor: colors.accentSoft, borderColor: '#BFEBD8' },
-  logoText: { fontWeight: '600', color: colors.textMuted },
-  logoTextOn: { color: colors.accentDark },
+  card: {},
+  row: { flexDirection: 'row', alignItems: 'center', gap: space(1.5), padding: space(2) },
+  pressed: { opacity: 0.7 },
   name: { ...type.body, fontWeight: '600', color: colors.text },
   desc: { ...type.caption, color: colors.textMuted },
-  btn: { height: 34, paddingHorizontal: space(1.5), borderRadius: radius.sm, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' },
-  btnDisabled: { opacity: 0.45 },
-  btnText: { ...type.caption, color: '#fff', fontWeight: '600' },
-  btnGhost: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
-  btnGhostText: { ...type.caption, color: colors.text, fontWeight: '500' },
-  keyBox: { gap: space(1) },
-  input: { height: 46, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: space(1.5), color: colors.text, ...type.secondary },
-  hint: { ...type.caption, color: colors.textMuted },
+  pill: { height: 32, paddingHorizontal: space(1.5), borderRadius: 999, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  pillText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  expand: { paddingHorizontal: space(2), paddingBottom: space(2), gap: space(1.5) },
+  disconnect: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 6 },
+  disconnectText: { ...type.caption, color: colors.danger, fontWeight: '600' },
+  note: { ...type.caption, color: colors.textFaint, textAlign: 'center', marginTop: space(1), marginHorizontal: space(2) },
 });

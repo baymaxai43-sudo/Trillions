@@ -23,6 +23,7 @@ import { MessageView } from '../src/components/MessageView';
 import { TopBar } from '../src/components/TopBar';
 import { ArtifactCard, ConfirmCard, ErrorCard, PlanCard, ToolCard } from '../src/components/AgentCards';
 import { ConfirmSheet } from '../src/components/ConfirmSheet';
+import { ConnectCard } from '../src/components/ConnectCard';
 import { TypingDots } from '../src/components/TypingDots';
 import { ThreadSkeleton } from '../src/components/Skeleton';
 import { streamChat } from '../src/lib/chat';
@@ -43,6 +44,7 @@ import { ensureTitle, getConversation, greeting, loadMessages } from '../src/lib
 import { onOpenConversation } from '../src/lib/nav';
 import { getAgentMode, getDefaultModel, setAgentModePref } from '../src/lib/prefs';
 import { userInfo, useSession } from '../src/lib/session';
+import { publish } from '../src/lib/sync';
 import type { SseClose } from '../src/lib/sse';
 import { colors, radius, space, type } from '../src/theme';
 
@@ -171,7 +173,7 @@ export default function Chat() {
       else if (r.attached && ev.type !== 'meta') {
         // Replay of a finished run from the DB: only take its final text and status.
         if (ev.type === 'delta') replayText.current += ev.text ?? '';
-        if (ev.type !== 'done' && ev.type !== 'error') return;
+        if (ev.type !== 'done' && ev.type !== 'error' && ev.type !== 'connect_request') return;
       }
       switch (ev.type) {
         case 'meta':
@@ -218,6 +220,26 @@ export default function Chat() {
         case 'confirmation_resolved':
           setItems((m) => m.map((i) => (i.kind === 'confirm' && i.id === ev.id ? { ...i, state: ev.approved ? 'approved' : 'declined' } : i)));
           setPending((p) => (p?.id === ev.id ? null : p));
+          break;
+        case 'connect_request':
+          setItems((m) => {
+            const item = {
+              kind: 'connect' as const,
+              id: String(ev.id),
+              provider: ev.provider,
+              label: ev.label ?? ev.provider,
+              reason: ev.reason ?? '',
+              howTo: Array.isArray(ev.howTo) ? ev.howTo : [],
+              tokenUrl: ev.tokenUrl ?? '',
+              connected: !!ev.connected,
+              accountLabel: ev.accountLabel ?? null,
+            };
+            const at = m.findIndex((i) => i.kind === 'connect' && i.id === item.id);
+            return at >= 0 ? m.map((i, k) => (k === at ? { ...i, ...item } : i)) : [...m, mk(item)];
+          });
+          break;
+        case 'state_changed':
+          if (ev.scope) publish(ev.scope);
           break;
         case 'error':
           pushError(ev.message || 'Something went wrong.');
@@ -497,6 +519,8 @@ export default function Chat() {
             onReview={() => run.current.id && setPending({ runId: run.current.id, id: item.id, tool: item.tool, summary: item.summary, args: item.args })}
           />
         );
+      case 'connect':
+        return <ConnectCard item={item} />;
       case 'error':
         return <ErrorCard message={item.message} onRetry={!busy && lastUserIdx >= 0 ? retry : undefined} />;
     }
