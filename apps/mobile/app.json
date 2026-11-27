@@ -40,7 +40,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "7ddfb9f0-891e-4c89-bf99-0a678a65dc1d"
+        "projectId": "8cfd8689-a64a-43f5-8ef3-7bfaaae78530"
       }
     },
     "icon": "./assets/icon.png",
@@ -49,6 +49,6 @@
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
-    "owner": "officialdarax"
+    "owner": "linuxbod"
   }
 }
