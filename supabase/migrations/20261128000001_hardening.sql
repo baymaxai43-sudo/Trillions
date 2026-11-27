@@ -72,6 +72,8 @@ begin
     where n.nspname = 'public' and p.proname = 'get_app_secret'
   loop
     execute format('revoke execute on function %s from public, anon, authenticated', f.sig);
+    -- keep the send-email edge function (service role) working
+    execute format('grant execute on function %s to service_role', f.sig);
   end loop;
 end $$;
 
