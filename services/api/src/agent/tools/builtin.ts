@@ -15,39 +15,50 @@ export const getTime: ToolDef = {
 
 export const remember: ToolDef = {
   name: 'remember',
-  description: 'Save a durable fact or preference about the user to long-term memory. Only for things the user would want remembered across conversations.',
+  description:
+    'Save a durable fact or preference about the user to long-term memory. Only for things the user would want remembered across conversations. ' +
+    'If this run has read web pages or private data, the memory is saved as pending until the user confirms it in Settings.',
   parameters: obj({ fact: str('One self-contained sentence, e.g. "Prefers TypeScript over JavaScript"') }, ['fact']),
+  private: false,
+  syncScope: 'memories',
   async run(args, ctx) {
     const fact = String(args.fact ?? '').trim().slice(0, 1000);
     if (!fact) return { ok: false, summary: 'Empty fact' };
-    const { error } = await ctx.db.from('memories').insert({ owner_id: ctx.userId, content: fact, source: 'explicit', confirmed: true });
-    return error ? { ok: false, summary: 'Could not save memory' } : { ok: true, summary: `Remembered: ${fact}` };
+    // Untrusted content in context could have planted this "fact": hold it for the user's review.
+    const confirmed = !(ctx.security.touchedPrivate || ctx.security.usedWeb);
+    const { error } = await ctx.db
+      .from('memories')
+      .insert({ owner_id: ctx.userId, content: fact, source: confirmed ? 'explicit' : 'suggested', confirmed });
+    if (error) return { ok: false, summary: 'Could not save memory' };
+    return confirmed
+      ? { ok: true, summary: `Remembered: ${fact}` }
+      : {
+          ok: true,
+          summary: `Saved for review: ${fact}`,
+          content: 'Saved as pending. It is used only after the user confirms it in Settings → What TRILLION knows. Tell the user.',
+        };
   },
 };
 
-export async function searchMemories(db: any, userId: string, query: string, k = 6): Promise<{ id: string; content: string }[]> {
+/** Full-text (then substring) memory search. `confirmed` null searches pending and confirmed rows. */
+export async function searchMemories(db: any, userId: string, query: string, k = 6, confirmed: boolean | null = true): Promise<{ id: string; content: string }[]> {
   const q = query.trim();
   if (!q) return [];
-  const fts = await db
-    .from('memories')
-    .select('id, content')
-    .eq('owner_id', userId)
-    .textSearch('fts', q.split(/\s+/).slice(0, 12).join(' or '), { type: 'websearch', config: 'english' })
-    .limit(k);
+  const base = () => {
+    const b = db.from('memories').select('id, content').eq('owner_id', userId);
+    return confirmed === null ? b : b.eq('confirmed', confirmed);
+  };
+  const fts = await base().textSearch('fts', q.split(/\s+/).slice(0, 12).join(' or '), { type: 'websearch', config: 'english' }).limit(k);
   if (fts.data?.length) return fts.data;
-  const like = await db
-    .from('memories')
-    .select('id, content')
-    .eq('owner_id', userId)
-    .ilike('content', `%${q.slice(0, 60).replace(/[%_]/g, '')}%`)
-    .limit(k);
+  const like = await base().ilike('content', `%${q.slice(0, 60).replace(/[%_]/g, '')}%`).limit(k);
   return like.data ?? [];
 }
 
 export const recall: ToolDef = {
   name: 'recall',
-  description: "Search the user's long-term memory for facts relevant to a query.",
+  description: "Search the user's confirmed long-term memory for facts relevant to a query.",
   parameters: obj({ query: str('What to look for') }, ['query']),
+  private: true,
   async run(args, ctx) {
     const rows = await searchMemories(ctx.db, ctx.userId, String(args.query ?? ''), 8);
     return {
@@ -63,9 +74,10 @@ export const forget: ToolDef = {
   description: 'Delete memories that match a query (asks the user first).',
   parameters: obj({ query: str('Text identifying the memory to delete') }, ['query']),
   confirm: true,
+  syncScope: 'memories',
   describe: (a) => `Delete memories matching “${a.query}”`,
   async run(args, ctx) {
-    const rows = await searchMemories(ctx.db, ctx.userId, String(args.query ?? ''), 5);
+    const rows = await searchMemories(ctx.db, ctx.userId, String(args.query ?? ''), 5, null);
     if (!rows.length) return { ok: false, summary: 'No matching memory' };
     await ctx.db.from('memories').delete().eq('owner_id', ctx.userId).in('id', rows.map((r) => r.id));
     return { ok: true, summary: `Deleted ${rows.length} memor${rows.length === 1 ? 'y' : 'ies'}` };
@@ -126,6 +138,7 @@ export const scheduleTask: ToolDef = {
   ),
   confirm: true,
   topLevelOnly: true,
+  syncScope: 'schedules',
   describe: (a) =>
     `Schedule “${a.title ?? String(a.prompt).slice(0, 60)}” ` +
     (a.kind === 'once' ? `for ${a.run_at}` : a.kind === 'interval' ? `every ${a.every_minutes} min` : `daily at ${a.time_of_day} ${a.timezone ?? 'Africa/Lagos'}`),
@@ -140,7 +153,10 @@ export const scheduleTask: ToolDef = {
       .insert({ owner_id: ctx.userId, title: a.title ?? null, prompt: a.prompt, ...spec, next_run_at: next.toISOString() })
       .select('id')
       .single();
-    if (error) return { ok: false, summary: `Could not schedule: ${error.message}` };
+    if (error) {
+      const limit = /at most 10 active/i.test(error.message);
+      return { ok: false, summary: limit ? 'You already have 10 active scheduled tasks. Pause or delete one in Settings first.' : 'Could not schedule the task' };
+    }
     return { ok: true, summary: `Scheduled; next run ${next.toISOString()}`, content: `Scheduled task ${data.id}, next run ${next.toISOString()}` };
   },
 };
@@ -152,7 +168,8 @@ export const listScheduledTasks: ToolDef = {
   async run(_a, ctx) {
     const { data } = await ctx.db.from('scheduled_tasks').select('id, title, prompt, kind, next_run_at, enabled').eq('owner_id', ctx.userId).order('created_at');
     const rows = data ?? [];
-    return { ok: true, summary: `${rows.length} scheduled task(s)`, content: JSON.stringify(rows) };
+    const lines = rows.map((r: any) => `- ${r.id} · ${r.title ?? String(r.prompt).slice(0, 60)} · ${r.kind} · ${r.enabled ? `next ${r.next_run_at ?? 'n/a'}` : 'paused'}`);
+    return { ok: true, summary: `${rows.length} scheduled task(s)`, content: lines.join('\n') || 'No scheduled tasks.' };
   },
 };
 
@@ -161,6 +178,7 @@ export const cancelScheduledTask: ToolDef = {
   description: 'Delete a scheduled task by id.',
   parameters: obj({ id: str('Scheduled task id') }, ['id']),
   confirm: true,
+  syncScope: 'schedules',
   describe: (a) => `Delete scheduled task ${a.id}`,
   async run(a, ctx) {
     const { error, count } = await ctx.db.from('scheduled_tasks').delete({ count: 'exact' }).eq('owner_id', ctx.userId).eq('id', a.id);

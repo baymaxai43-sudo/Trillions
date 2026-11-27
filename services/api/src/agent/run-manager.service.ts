@@ -41,6 +41,11 @@ export class RunManager implements OnModuleDestroy {
     return this.runs.get(id);
   }
 
+  /** Ids of this user's runs that are still going. */
+  liveRunIds(ownerId: string): string[] {
+    return [...this.runs.values()].filter((r) => !r.finishedAt && r.ownerId === ownerId).map((r) => r.id);
+  }
+
   activeCount(ownerId?: string): number {
     let n = 0;
     for (const r of this.runs.values()) if (!r.finishedAt && (!ownerId || r.ownerId === ownerId)) n++;

@@ -28,7 +28,13 @@ function bodyText(part: any): string {
 /** Strip CR/LF so header values can't inject extra headers. */
 const clean = (s: string) => String(s ?? '').replace(/[\r\n]+/g, ' ').trim();
 
-export const googleTools: ToolDef[] = [
+/**
+ * Disabled: Gmail needs OAuth (access tokens expire hourly; there is no long-lived pasteable token),
+ * and connectors are token-only now. Kept so it can return behind a proper OAuth flow later.
+ */
+const googleEnabled = () => false;
+
+const gmailTools: ToolDef[] = [
   {
     name: 'gmail_search',
     provider: 'google',
@@ -86,3 +92,5 @@ export const googleTools: ToolDef[] = [
     },
   },
 ];
+
+export const googleTools: ToolDef[] = gmailTools.map((t) => ({ ...t, enabled: googleEnabled, private: true }));
