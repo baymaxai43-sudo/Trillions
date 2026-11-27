@@ -1,0 +1,11 @@
+import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.enableCors({ origin: (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean) });
+  app.setGlobalPrefix('v1', { exclude: ['health'] });
+  await app.listen(Number(process.env.PORT ?? 4000));
+}
+bootstrap();
