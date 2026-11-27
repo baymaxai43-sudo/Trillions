@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { Alert, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, space, type } from '../theme';
+import { colors, space, type } from '../theme';
 
-const LINE = 22;
+const LINE = 21;
 const MAX_LINES = 6;
 
+/**
+ * Hark-style floating composer: one frosted pill with the input, a + (attach / agent mode)
+ * and a mic that turns into a black send button once there is text.
+ */
 export function Composer({
   busy,
   onSend,
@@ -15,6 +18,7 @@ export function Composer({
   onToggleAgent,
   value,
   onChangeValue,
+  placeholder = 'Message TRILLION',
 }: {
   busy: boolean;
   onSend: (t: string) => void;
@@ -23,6 +27,7 @@ export function Composer({
   onToggleAgent?: () => void;
   value?: string;
   onChangeValue?: (t: string) => void;
+  placeholder?: string;
 }) {
   const [own, setOwn] = useState('');
   const text = value ?? own;
@@ -38,90 +43,78 @@ export function Composer({
     onSend(t);
   };
 
+  const plus = () => {
+    const opts: { text: string; onPress?: () => void; style?: 'cancel' }[] = [
+      { text: 'Attach a file', onPress: () => Alert.alert('Attachments', 'Attaching files is coming soon.') },
+    ];
+    if (onToggleAgent) opts.push({ text: agentMode ? 'Turn agent mode off' : 'Turn agent mode on', onPress: onToggleAgent });
+    opts.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Add to message', undefined, opts);
+  };
+
+  const inputH = Math.min(Math.max(LINE, height), LINE * MAX_LINES);
+
   return (
-    <View style={s.shadow}>
-    <View style={s.wrap}>
-      <BlurView intensity={40} tint="light" experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined} style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, s.veil]} />
-      <TextInput
-        style={[s.input, { height: Math.min(Math.max(LINE, height), LINE * MAX_LINES) + 12 }]}
-        placeholder="Ask TRILLION anything"
-        placeholderTextColor={colors.textFaint}
-        value={text}
-        onChangeText={setText}
-        onContentSizeChange={(e) => setHeight(e.nativeEvent.contentSize.height)}
-        multiline
-        scrollEnabled={height > LINE * MAX_LINES}
-        textAlignVertical="top"
-      />
-      <View style={s.row}>
-        <Pressable
-          style={({ pressed }) => [s.iconBtn, pressed && s.pressed]}
-          hitSlop={8}
-          accessibilityLabel="Attach"
-          onPress={() => Alert.alert('Attachments', 'Attaching files is coming soon.')}
-        >
-          <Ionicons name="add" size={20} color={colors.textMuted} />
-        </Pressable>
-        {onToggleAgent && (
-          <Pressable
-            onPress={onToggleAgent}
-            style={({ pressed }) => [s.chip, agentMode && s.chipOn, pressed && s.pressed]}
-            hitSlop={6}
-            accessibilityRole="switch"
-            accessibilityState={{ checked: !!agentMode }}
-          >
-            <Ionicons name="sparkles-outline" size={13} color={agentMode ? colors.accentDark : colors.textMuted} />
-            <Text style={[s.chipText, agentMode && s.chipTextOn]}>Agent</Text>
+    <View style={s.outer}>
+      <View style={[s.pill, inputH > LINE + 2 && s.pillTall]}>
+        <TextInput
+          style={[s.input, { height: inputH + 16 }]}
+          placeholder={agentMode ? 'Give TRILLION a task' : placeholder}
+          placeholderTextColor="rgba(17,18,20,0.45)"
+          value={text}
+          onChangeText={setText}
+          onContentSizeChange={(e) => Platform.OS !== 'web' && setHeight(e.nativeEvent.contentSize.height)}
+          multiline
+          scrollEnabled={height > LINE * MAX_LINES}
+          textAlignVertical="center"
+        />
+        <View style={s.actions}>
+          {agentMode && <View style={s.agentDot} accessibilityLabel="Agent mode on" />}
+          <Pressable onPress={plus} hitSlop={8} style={({ pressed }) => [s.icon, pressed && s.pressed]} accessibilityLabel="Add">
+            <Ionicons name="add" size={24} color="rgba(17,18,20,0.6)" />
           </Pressable>
-        )}
-        <View style={{ flex: 1 }} />
-        <Pressable
-          onPress={busy ? onStop : send}
-          disabled={!busy && !canSend}
-          style={({ pressed }) => [s.send, !busy && !canSend && s.sendOff, pressed && s.pressed]}
-          accessibilityLabel={busy ? 'Stop' : 'Send'}
-        >
-          {busy ? <View style={s.stopSquare} /> : <Ionicons name="arrow-up" size={18} color="#fff" />}
-        </Pressable>
+          {busy ? (
+            <Pressable onPress={onStop} style={({ pressed }) => [s.send, pressed && s.pressed]} accessibilityLabel="Stop">
+              <View style={s.stopSquare} />
+            </Pressable>
+          ) : canSend ? (
+            <Pressable onPress={send} style={({ pressed }) => [s.send, pressed && s.pressed]} accessibilityLabel="Send">
+              <Ionicons name="arrow-up" size={19} color="#fff" />
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => Alert.alert('Voice', 'Voice input is coming soon.')} hitSlop={8} style={({ pressed }) => [s.icon, pressed && s.pressed]} accessibilityLabel="Voice">
+              <Ionicons name="mic-outline" size={21} color="rgba(17,18,20,0.6)" />
+            </Pressable>
+          )}
+        </View>
       </View>
-    </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  shadow: {
-    marginHorizontal: space(1.5),
-    marginBottom: space(1),
-    marginTop: space(0.5),
-    borderRadius: radius.xl,
-    backgroundColor: colors.bg,
-    shadowColor: '#0B3B2A',
-    shadowOpacity: 0.06,
-    shadowRadius: 14,
+  outer: { paddingHorizontal: space(2), paddingTop: space(0.75), paddingBottom: space(1.25) },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    minHeight: 54,
+    borderRadius: 27,
+    paddingLeft: space(2.25),
+    paddingRight: space(0.75),
+    backgroundColor: 'rgba(255,255,255,0.62)',
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: 'rgba(255,255,255,0.8)',
+    shadowColor: '#1B2A44',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
   },
-  veil: { backgroundColor: 'rgba(255,255,255,0.82)' },
-  wrap: {
-    overflow: 'hidden',
-    paddingHorizontal: space(1.25),
-    paddingTop: space(1),
-    paddingBottom: space(1),
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.xl,
-  },
-  input: { ...type.body, lineHeight: LINE, color: colors.text, paddingHorizontal: space(0.5), paddingTop: 6, paddingBottom: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space(1), marginTop: space(0.5) },
-  iconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: colors.border },
-  pressed: { opacity: 0.6 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 30, paddingHorizontal: space(1.25), borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
-  chipOn: { backgroundColor: colors.accentSoft, borderColor: '#BFEBD8' },
-  chipText: { ...type.caption, fontWeight: '500', color: colors.textMuted },
-  chipTextOn: { color: colors.accentDark },
-  send: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  sendOff: { backgroundColor: '#A7E3CC' },
-  stopSquare: { width: 11, height: 11, borderRadius: 2, backgroundColor: '#fff' },
+  pillTall: { borderRadius: 24 },
+  input: { flex: 1, ...type.body, fontSize: 16, lineHeight: LINE, color: colors.text, paddingVertical: 8, marginBottom: 3 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 52 },
+  icon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
+  send: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', marginLeft: 2 },
+  stopSquare: { width: 12, height: 12, borderRadius: 3, backgroundColor: '#fff' },
+  agentDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success, marginRight: 4 },
+  pressed: { opacity: 0.55 },
 });

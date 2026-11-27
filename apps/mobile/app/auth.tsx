@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassBackdrop } from '../src/components/Glass';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { Ionicons } from '@expo/vector-icons';
@@ -121,6 +122,8 @@ export default function Auth() {
   };
 
   return (
+    <GlassBackdrop>
+
     <SafeAreaView style={s.safe}>
       <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={s.wrap} keyboardShouldPersistTaps="handled">
@@ -199,6 +202,7 @@ export default function Auth() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </GlassBackdrop>
   );
 }
 
@@ -236,7 +240,7 @@ function OtpBoxes({ value, onChange, disabled }: { value: string; onChange: (v: 
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   flex: { flex: 1 },
   wrap: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: space(3), paddingVertical: space(4), gap: space(1.5) },
   back: { position: 'absolute', top: space(1), left: space(1.5), width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
@@ -253,7 +257,7 @@ const s = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.card,
   },
   oauthText: { ...type.body, color: colors.text, fontWeight: '500' },
   pressed: { backgroundColor: colors.surface },
@@ -264,7 +268,7 @@ const s = StyleSheet.create({
     ...type.body,
     height: 50,
     color: colors.text,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.card,
     borderColor: colors.border,
     borderWidth: 1,
     borderRadius: radius.md,
@@ -279,7 +283,7 @@ const s = StyleSheet.create({
   linkInline: { color: colors.accentDark, fontWeight: '500' },
   link: { ...type.secondary, color: colors.accentDark, textAlign: 'center', marginTop: space(1), fontWeight: '500' },
   otpRow: { flexDirection: 'row', justifyContent: 'center', gap: space(1), marginVertical: space(1) },
-  otpBox: { width: 46, height: 54, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  otpBox: { width: 46, height: 54, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card },
   otpBoxActive: { borderColor: colors.accent, borderWidth: 1.5 },
   otpBoxFilled: { backgroundColor: colors.surface },
   otpDigit: { fontSize: 22, fontWeight: '600', color: colors.text },

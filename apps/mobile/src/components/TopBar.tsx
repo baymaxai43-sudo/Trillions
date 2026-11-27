@@ -1,105 +1,120 @@
 import { ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Avatar } from './Avatar';
 import { userInfo, useSession } from '../lib/session';
-import { goTab, Tab } from '../lib/nav';
+import { goTab, openConversation, Tab } from '../lib/nav';
 import { colors, space } from '../theme';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'chat', label: 'Chat' },
   { id: 'home', label: 'Home' },
+  { id: 'chat', label: 'Chat' },
   { id: 'projects', label: 'Projects' },
 ];
 
-function BarShell({ children, scrolled, transparent }: { children: ReactNode; scrolled?: boolean; transparent?: boolean }) {
-  if (scrolled) {
-    return (
-      <View style={[s.bar, s.barScrolled]}>
-        <BlurView intensity={50} tint="light" experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined} style={StyleSheet.absoluteFill} />
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.72)' }]} />
-        {children}
-      </View>
-    );
-  }
-  return <View style={[s.bar, transparent ? s.barClear : s.barPlain]}>{children}</View>;
+const BTN = 44;
+
+/** Round frosted button used at both ends of the bars. */
+export function CircleButton({ icon, onPress, label, size = BTN, dark }: { icon: keyof typeof Ionicons.glyphMap; onPress?: () => void; label: string; size?: number; dark?: boolean }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityLabel={label}
+      style={({ pressed }) => [s.circle, { width: size, height: size, borderRadius: size / 2 }, dark && s.circleDark, pressed && s.pressed]}
+    >
+      <Ionicons name={icon} size={dark ? 20 : 21} color={dark ? '#fff' : colors.text} />
+    </Pressable>
+  );
 }
 
-/** Top bar: Home icon, Chat · Home · Projects switcher, search and avatar (opens Settings). */
+/**
+ * Hark-style top bar: a round button on the left (search on Chat, + elsewhere),
+ * the frosted Home · Chat · Projects pill in the middle with a black active pill,
+ * and the avatar on the right (opens Settings).
+ */
 export function TopBar({
   active,
   onSearch,
-  scrolled,
-  transparent,
+  onAdd,
 }: {
   active: Tab;
   onSearch?: () => void;
+  onAdd?: () => void;
   scrolled?: boolean;
   transparent?: boolean;
 }) {
   const { session } = useSession();
   const u = userInfo(session?.user);
+  const search = onSearch ?? (() => router.push({ pathname: '/chats', params: { focus: 'search' } }));
+  const add = onAdd ?? (() => openConversation(null));
   return (
-    <BarShell scrolled={scrolled} transparent={transparent}>
-      <Pressable onPress={() => goTab('home', active)} hitSlop={10} style={({ pressed }) => [s.icon, pressed && s.pressed]} accessibilityLabel="Home">
-        <Ionicons name={active === 'home' ? 'home' : 'home-outline'} size={20} color={colors.text} />
+    <View style={s.bar}>
+      {active === 'chat' ? <CircleButton icon="search" label="Search" onPress={search} /> : <CircleButton icon="add" label="New" onPress={add} />}
+      <View style={s.center}>
+        <View style={s.track} accessibilityRole="tablist">
+          {TABS.map((t) => {
+            const on = t.id === active;
+            return (
+              <Pressable
+                key={t.id}
+                onPress={() => goTab(t.id, active)}
+                hitSlop={4}
+                style={[s.tab, on && s.tabOn]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+              >
+                <Text style={[s.tabText, on && s.tabTextOn]} numberOfLines={1}>{t.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+      <Pressable onPress={() => router.push('/settings')} hitSlop={8} accessibilityLabel="Settings" style={({ pressed }) => pressed && s.pressed}>
+        <Avatar photo={u.photo} initial={u.initial} size={BTN} />
       </Pressable>
-      <View style={s.tabs} accessibilityRole="tablist">
-        {TABS.map((t) => {
-          const on = t.id === active;
-          return (
-            <Pressable key={t.id} onPress={() => goTab(t.id, active)} hitSlop={6} style={s.tab} accessibilityRole="tab" accessibilityState={{ selected: on }}>
-              <Text style={[s.tabText, on && s.tabTextOn]}>{t.label}</Text>
-              <View style={[s.tabMark, on && s.tabMarkOn]} />
-            </Pressable>
-          );
-        })}
-      </View>
-      <View style={s.right}>
-        <Pressable onPress={onSearch ?? (() => router.push({ pathname: '/chats', params: { focus: 'search' } }))} hitSlop={10} style={({ pressed }) => [s.icon, pressed && s.pressed]} accessibilityLabel="Search">
-          <Ionicons name="search-outline" size={20} color={colors.text} />
-        </Pressable>
-        <Pressable onPress={() => router.push('/settings')} hitSlop={10} accessibilityLabel="Settings">
-          <Avatar photo={u.photo} initial={u.initial} size={30} />
-        </Pressable>
-      </View>
-    </BarShell>
+    </View>
   );
 }
 
-/** Header for sub-screens: back chevron + title (+ optional right content). */
-export function BackHeader({ title, onBack, right, scrolled, transparent }: { title: string; onBack?: () => void; right?: ReactNode; scrolled?: boolean; transparent?: boolean }) {
+/** Sub-screen header: round back button, centred title, optional right content. */
+export function BackHeader({ title, onBack, right }: { title: string; onBack?: () => void; right?: ReactNode; scrolled?: boolean; transparent?: boolean }) {
   return (
-    <BarShell scrolled={scrolled} transparent={transparent}>
-      <Pressable
-        onPress={onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/')))}
-        hitSlop={10}
-        style={({ pressed }) => [s.icon, pressed && s.pressed]}
-        accessibilityLabel="Back"
-      >
-        <Ionicons name="chevron-back" size={22} color={colors.text} />
-      </Pressable>
+    <View style={s.bar}>
+      <CircleButton icon="chevron-back" label="Back" onPress={onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/')))} />
       <Text style={s.title} numberOfLines={1}>{title}</Text>
-      <View style={[s.right, { minWidth: 36, justifyContent: 'flex-end' }]}>{right}</View>
-    </BarShell>
+      <View style={s.rightSlot}>{right}</View>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  bar: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: space(1.25) },
-  barPlain: { backgroundColor: colors.bg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'transparent' },
-  barClear: { backgroundColor: 'transparent' },
-  barScrolled: { overflow: 'hidden', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  title: { flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '500', color: colors.text, marginHorizontal: space(1) },
-  tabs: { flex: 1, flexDirection: 'row', justifyContent: 'center', gap: space(2) },
-  tab: { alignItems: 'center', paddingTop: 4 },
-  tabText: { fontSize: 14, fontWeight: '400', color: colors.textMuted },
-  tabTextOn: { color: colors.text, fontWeight: '600' },
-  tabMark: { marginTop: 4, width: 4, height: 4, borderRadius: 2, backgroundColor: 'transparent' },
-  tabMarkOn: { backgroundColor: colors.accent },
-  right: { flexDirection: 'row', alignItems: 'center', gap: space(0.75) },
-  icon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
-  pressed: { backgroundColor: 'rgba(11,31,23,0.05)' },
+  bar: { height: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: space(2), gap: space(1) },
+  center: { flex: 1, alignItems: 'center' },
+  track: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.42)',
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: 'rgba(255,255,255,0.6)',
+    maxWidth: 260,
+  },
+  tab: { height: 38, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center', minWidth: 62 },
+  tabOn: { backgroundColor: colors.ink },
+  tabText: { fontSize: 14, fontWeight: '500', color: 'rgba(17,18,20,0.55)' },
+  tabTextOn: { color: '#FFFFFF', fontWeight: '600' },
+  circle: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: 'rgba(255,255,255,0.7)',
+  },
+  circleDark: { backgroundColor: colors.ink, borderColor: colors.ink },
+  title: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600', color: colors.text, letterSpacing: -0.2 },
+  rightSlot: { minWidth: BTN, alignItems: 'flex-end', justifyContent: 'center' },
+  pressed: { opacity: 0.6 },
 });

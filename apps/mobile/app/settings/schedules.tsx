@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassBackdrop } from '../../src/components/Glass';
 import { Ionicons } from '@expo/vector-icons';
 import { BackHeader } from '../../src/components/TopBar';
 import { ListSkeleton } from '../../src/components/Skeleton';
@@ -67,6 +68,8 @@ export default function Schedules() {
     ]);
 
   return (
+    <GlassBackdrop>
+
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <BackHeader title="Scheduled tasks" />
       {list === null ? (
@@ -104,11 +107,12 @@ export default function Schedules() {
         />
       )}
     </SafeAreaView>
+    </GlassBackdrop>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space(1.5), paddingHorizontal: space(2), paddingVertical: space(1.75), borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   dot: { width: 8, height: 8, borderRadius: 4 },
   title: { ...type.secondary, color: colors.text },

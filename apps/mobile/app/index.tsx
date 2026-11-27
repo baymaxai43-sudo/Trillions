@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassBackdrop } from '../src/components/Glass';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Composer } from '../src/components/Composer';
@@ -510,6 +511,8 @@ export default function Chat() {
   };
 
   return (
+    <GlassBackdrop>
+
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <TopBar active="chat" scrolled={scrolled} />
       {!!title && items.length > 0 && (
@@ -569,23 +572,24 @@ export default function Chat() {
       </KeyboardAvoidingView>
       <ConfirmSheet pending={pending} onDecide={decide} />
     </SafeAreaView>
+    </GlassBackdrop>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   flex: { flex: 1 },
   list: { paddingHorizontal: space(2), paddingTop: space(1.5), paddingBottom: space(2) },
   empty: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: space(3), paddingBottom: space(4) },
-  mark: { width: 40, height: 40, borderRadius: 10, marginBottom: space(2.5) },
+  mark: { width: 48, height: 48, borderRadius: 14, marginBottom: space(2.5) },
   hello: { ...type.greeting, color: colors.text },
-  sub: { ...type.body, color: colors.textMuted, marginTop: space(1) },
+  sub: { ...type.body, color: colors.textMuted, marginTop: space(1), fontWeight: '500' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space(1), marginTop: space(3) },
-  chip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: space(1.5), paddingVertical: space(1), backgroundColor: colors.bg, maxWidth: '100%' },
-  chipPressed: { backgroundColor: colors.surface },
-  chipText: { ...type.caption, fontSize: 14, color: colors.text },
-  typing: { paddingLeft: 22 + space(1.25) },
-  threadHead: { flexDirection: 'row', alignItems: 'center', paddingLeft: space(2.5), paddingRight: space(1.5), paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  chip: { borderWidth: StyleSheet.hairlineWidth * 2, borderColor: colors.glassLine, borderRadius: 999, paddingHorizontal: space(1.75), paddingVertical: space(1.1), backgroundColor: 'rgba(255,255,255,0.55)', maxWidth: '100%' },
+  chipPressed: { backgroundColor: 'rgba(255,255,255,0.85)' },
+  chipText: { ...type.caption, fontSize: 14, color: colors.text, fontWeight: '500' },
+  typing: { paddingLeft: space(0.5) },
+  threadHead: { flexDirection: 'row', alignItems: 'center', paddingLeft: space(2.5), paddingRight: space(1.5), paddingVertical: 4 },
   threadTitle: { flex: 1, ...type.caption, color: colors.textMuted, fontWeight: '500' },
   newBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
 });

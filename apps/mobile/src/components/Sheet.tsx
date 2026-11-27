@@ -28,8 +28,8 @@ const s = StyleSheet.create({
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim },
   sheet: {
     overflow: 'hidden',
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.6)',
     paddingHorizontal: space(2.5),
@@ -37,7 +37,7 @@ const s = StyleSheet.create({
     maxHeight: '88%',
     ...sheetShadow,
   },
-  veil: { backgroundColor: 'rgba(255,255,255,0.86)' },
+  veil: { backgroundColor: 'rgba(247,249,252,0.97)' },
   grab: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong, marginBottom: space(2) },
   title: { ...type.title, color: colors.text, marginBottom: space(1.5) },
 });

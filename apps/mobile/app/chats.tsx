@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassBackdrop } from '../src/components/Glass';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BackHeader } from '../src/components/TopBar';
@@ -69,6 +70,8 @@ export default function Chats() {
     ]);
 
   return (
+    <GlassBackdrop>
+
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <BackHeader title="All chats" />
       <View style={s.head}>
@@ -127,11 +130,12 @@ export default function Chats() {
         />
       )}
     </SafeAreaView>
+    </GlassBackdrop>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   head: { flexDirection: 'row', alignItems: 'center', gap: space(1), paddingHorizontal: space(2), paddingTop: space(1.5), paddingBottom: space(1) },
   search: { flex: 1, height: 40, flexDirection: 'row', alignItems: 'center', gap: space(1), paddingHorizontal: space(1.25), borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   searchInput: { flex: 1, ...type.secondary, color: colors.text, paddingVertical: 0 },

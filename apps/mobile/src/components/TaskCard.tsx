@@ -27,15 +27,15 @@ export function TaskCard({ title, step, status, onStop, onApprove }: { title: st
 }
 
 const s = StyleSheet.create({
-  card: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.card, padding: space(2), marginVertical: space(1) },
+  card: { backgroundColor: colors.cardStrong, borderColor: colors.glassLine, borderWidth: StyleSheet.hairlineWidth * 2, borderRadius: radius.card, padding: space(2), marginVertical: space(1) },
   head: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
   title: { flex: 1, ...type.body, fontWeight: '600', color: colors.text },
-  pill: { backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: space(1.25), paddingVertical: 4 },
-  pillText: { ...type.caption, color: colors.primaryDark, fontWeight: '600' },
+  pill: { backgroundColor: colors.ink, borderRadius: radius.pill, paddingHorizontal: space(1.25), paddingVertical: 4 },
+  pillText: { ...type.caption, color: '#fff', fontWeight: '600' },
   step: { ...type.secondary, color: colors.textMuted, marginTop: space(1) },
   actions: { flexDirection: 'row', gap: space(1), marginTop: space(1.5) },
   primary: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: space(2.5), paddingVertical: space(1) },
   primaryText: { color: '#fff', fontWeight: '700' },
-  ghost: { borderColor: colors.border, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space(2.5), paddingVertical: space(1) },
+  ghost: { backgroundColor: '#fff', borderColor: colors.border, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space(2.5), paddingVertical: space(1) },
   ghostText: { color: colors.text, fontWeight: '600' },
 });

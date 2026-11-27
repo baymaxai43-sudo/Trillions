@@ -101,7 +101,7 @@ export default function Home() {
             <Text style={s.eyebrow}>{today}</Text>
             <Text style={s.greeting}>{greeting()}{me.firstName ? `, ${me.firstName}` : ''}</Text>
             <Pressable onPress={() => openConversation(null)} style={({ pressed }) => [s.cta, pressed && s.pressed]}>
-              <Ionicons name="sparkles-outline" size={14} color={colors.accentDark} />
+              <Ionicons name="sparkles-outline" size={14} color="#fff" />
               <Text style={s.ctaText}>Ask TRILLION</Text>
             </Pressable>
           </Glass>
@@ -188,19 +188,13 @@ export default function Home() {
   return (
     <GlassBackdrop>
       <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
-        <TopBar active="home" scrolled={scrolled} transparent />
+        <TopBar active="home" onAdd={() => setPicker(true)} />
         <ScrollView
           contentContainerStyle={s.body}
           onScroll={onScroll}
           scrollEventThrottle={64}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} colors={[colors.accent]} />}
         >
-          <View style={s.headRow}>
-            <Text style={s.h1}>Home</Text>
-            <Pressable onPress={() => setPicker(true)} style={({ pressed }) => [s.add, pressed && s.pressed]} accessibilityLabel="Add panel">
-              <Ionicons name="add" size={20} color={colors.text} />
-            </Pressable>
-          </View>
           {panels === null ? (
             <ActivityIndicator color={colors.accent} style={{ marginTop: space(4) }} />
           ) : panels.length === 0 ? (
@@ -269,21 +263,21 @@ function relativeFuture(iso: string) {
 
 const s = StyleSheet.create({
   safe: { flex: 1 },
-  body: { padding: space(2), paddingBottom: space(5) },
+  body: { paddingHorizontal: space(2), paddingTop: space(1), paddingBottom: space(5) },
   headRow: { flexDirection: 'row', alignItems: 'center', marginBottom: space(2) },
   h1: { flex: 1, ...type.display, color: colors.text },
   add: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.7)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: space(1.5) },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: space(1.25) },
   full: { width: '100%' },
   half: { width: '48.5%' },
   pressed: { opacity: 0.65 },
   eyebrow: { ...type.caption, color: colors.textMuted },
   greeting: { ...type.greeting, fontSize: 24, lineHeight: 30, color: colors.text, marginTop: 2 },
-  cta: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: space(1.5), paddingHorizontal: space(1.25), paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: '#BFEBD8', backgroundColor: 'rgba(236,253,245,0.8)' },
-  ctaText: { ...type.caption, color: colors.accentDark, fontWeight: '600' },
+  cta: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: space(1.5), paddingHorizontal: space(1.75), paddingVertical: 9, borderRadius: 999, backgroundColor: colors.ink },
+  ctaText: { ...type.caption, color: '#fff', fontWeight: '600' },
   panelHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: space(1) },
-  panelTitle: { flex: 1, ...type.caption, color: colors.text, fontWeight: '600' },
-  action: { ...type.caption, color: colors.accentDark, fontWeight: '500' },
+  panelTitle: { flex: 1, fontSize: 14, color: colors.text, fontWeight: '600' },
+  action: { ...type.caption, color: colors.textMuted, fontWeight: '600' },
   big: { fontSize: 26, lineHeight: 32, fontWeight: '600', color: colors.text },
   muted: { ...type.caption, color: colors.textMuted },
   bodyText: { ...type.secondary, color: colors.text },

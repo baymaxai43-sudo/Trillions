@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassBackdrop } from '../../src/components/Glass';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { TopBar } from '../../src/components/TopBar';
 import { Sheet } from '../../src/components/Sheet';
 import { ListSkeleton } from '../../src/components/Skeleton';
-import { relativeTime } from '../../src/lib/conversations';
 import { createProject, listProjects, Project } from '../../src/lib/projects';
 import { colors, radius, space, type } from '../../src/theme';
 
@@ -30,32 +30,22 @@ export default function Projects() {
   }, [load]);
 
   return (
+    <GlassBackdrop>
+
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
-      <TopBar active="projects" />
-      <View style={s.headRow}>
-        <Text style={s.h1}>Projects</Text>
-        <Pressable onPress={() => setCreating(true)} style={({ pressed }) => [s.newBtn, pressed && s.pressed]}>
-          <Ionicons name="add" size={17} color="#fff" />
-          <Text style={s.newText}>New project</Text>
-        </Pressable>
-      </View>
+      <TopBar active="projects" onAdd={() => setCreating(true)} />
       {list === null ? (
         <ListSkeleton rows={5} />
       ) : (
         <FlatList
           data={list}
           keyExtractor={(p) => p.id}
-          contentContainerStyle={list.length === 0 ? { flexGrow: 1 } : { paddingBottom: space(4) }}
+          contentContainerStyle={list.length === 0 ? { flexGrow: 1 } : { paddingTop: space(3), paddingBottom: space(4) }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={colors.accent} colors={[colors.accent]} />}
           renderItem={({ item }) => (
             <Pressable onPress={() => router.push({ pathname: '/projects/[id]', params: { id: item.id } })} style={({ pressed }) => [s.row, pressed && s.rowPressed]}>
-              <View style={s.icon}><Ionicons name="folder-outline" size={18} color={colors.accentDark} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.title} numberOfLines={1}>{item.title}</Text>
-                {!!item.description && <Text style={s.desc} numberOfLines={1}>{item.description}</Text>}
-              </View>
-              <Text style={s.time}>{relativeTime(item.updated_at)}</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+              <Text style={s.title} numberOfLines={1}>{item.title}</Text>
+              {!!item.description && <Text style={s.desc} numberOfLines={1}>{item.description}</Text>}
             </Pressable>
           )}
           ListEmptyComponent={
@@ -77,6 +67,7 @@ export default function Projects() {
         }}
       />
     </SafeAreaView>
+    </GlassBackdrop>
   );
 }
 
@@ -113,17 +104,17 @@ function CreateProjectSheet({ visible, onClose, onCreated }: { visible: boolean;
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   headRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space(2), paddingTop: space(2), paddingBottom: space(1.5) },
   h1: { flex: 1, ...type.display, color: colors.text },
   newBtn: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: space(1.5), borderRadius: radius.md, backgroundColor: colors.accentDark },
   newText: { ...type.caption, fontSize: 14, color: '#fff', fontWeight: '500' },
   pressed: { opacity: 0.65 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space(1.5), paddingHorizontal: space(2), paddingVertical: space(1.5), borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  rowPressed: { backgroundColor: colors.surface },
+  row: { paddingHorizontal: space(3), paddingVertical: space(1.5) },
+  rowPressed: { opacity: 0.55 },
   icon: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
-  title: { ...type.secondary, color: colors.text, fontWeight: '500' },
-  desc: { ...type.caption, color: colors.textMuted },
+  title: { fontSize: 17, fontWeight: '700', color: colors.text, letterSpacing: -0.3 },
+  desc: { ...type.caption, color: colors.textMuted, marginTop: 2 },
   time: { ...type.caption, color: colors.textFaint },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space(4), gap: space(0.75) },
   emptyTitle: { ...type.title, fontSize: 16, color: colors.text },
@@ -131,6 +122,6 @@ const s = StyleSheet.create({
   input: { ...type.body, color: colors.text, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: space(1.5), height: 48, marginBottom: space(1.25), backgroundColor: 'rgba(255,255,255,0.9)' },
   multiline: { height: 96, paddingTop: space(1.25) },
   err: { ...type.caption, color: colors.danger, marginBottom: space(1) },
-  primary: { height: 48, borderRadius: radius.md, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center', marginTop: space(0.5) },
+  primary: { height: 50, borderRadius: 999, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', marginTop: space(0.5) },
   primaryText: { ...type.body, color: '#fff', fontWeight: '600' },
 });

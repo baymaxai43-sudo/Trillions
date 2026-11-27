@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassBackdrop } from '../../src/components/Glass';
 import { BackHeader } from '../../src/components/TopBar';
 import { supabase } from '../../src/lib/supabase';
 import { colors, radius, space, type } from '../../src/theme';
@@ -25,6 +26,8 @@ export default function Security() {
   };
 
   return (
+    <GlassBackdrop>
+
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <BackHeader title="Security" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -39,11 +42,12 @@ export default function Security() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </GlassBackdrop>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   body: { padding: space(2), gap: space(1.25) },
   h: { ...type.title, color: colors.text, marginBottom: space(0.5) },
   input: { ...type.body, height: 48, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: space(1.5), color: colors.text },

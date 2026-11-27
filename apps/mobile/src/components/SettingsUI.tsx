@@ -39,7 +39,7 @@ export function Row({
       style={({ pressed }) => [s.row, !last && s.divider, pressed && !disabled && s.pressed]}
       accessibilityState={{ disabled }}
     >
-      {icon && <Ionicons name={icon} size={18} color={danger ? colors.danger : locked ? colors.textFaint : colors.textMuted} style={s.icon} />}
+      {icon && <Ionicons name={icon} size={20} color={danger ? colors.danger : locked ? colors.textFaint : colors.text} style={s.icon} />}
       <Text style={[s.label, danger && s.danger, locked && s.lockedText]} numberOfLines={1}>{label}</Text>
       {right}
       {!!value && <Text style={s.value} numberOfLines={1}>{value}</Text>}
@@ -49,7 +49,7 @@ export function Row({
           <Text style={s.lockText}>Pro</Text>
         </View>
       ) : onPress && !danger ? (
-        <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+        <Ionicons name="chevron-forward" size={17} color={colors.text} />
       ) : null}
     </Pressable>
   );
@@ -60,18 +60,24 @@ export function Note({ children }: { children: ReactNode }) {
 }
 
 const s = StyleSheet.create({
-  section: { marginTop: space(3) },
-  sectionTitle: { ...type.micro, color: colors.textFaint, textTransform: 'uppercase', marginBottom: space(1), marginLeft: space(0.5) },
-  group: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.bg, overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space(1.25), minHeight: 50, paddingHorizontal: space(1.75), paddingVertical: space(1.25) },
-  divider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  pressed: { backgroundColor: colors.surface },
-  icon: { width: 20 },
-  label: { flex: 1, ...type.secondary, color: colors.text },
-  danger: { color: colors.danger, fontWeight: '500' },
+  section: { marginTop: space(1.75) },
+  sectionTitle: { ...type.caption, color: colors.textMuted, fontWeight: '500', marginBottom: space(1), marginLeft: space(1) },
+  group: {
+    borderRadius: radius.card,
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: colors.glassLine,
+    overflow: 'hidden',
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space(1.5), minHeight: 58, paddingHorizontal: space(2), paddingVertical: space(1.25) },
+  divider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(17,18,20,0.09)' },
+  pressed: { backgroundColor: 'rgba(255,255,255,0.55)' },
+  icon: { width: 22 },
+  label: { flex: 1, fontSize: 15.5, fontWeight: '500', color: colors.text },
+  danger: { color: colors.danger, fontWeight: '600' },
   lockedText: { color: colors.textFaint },
-  value: { ...type.caption, fontSize: 14, color: colors.textMuted, maxWidth: '45%' },
-  lockPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  lockText: { ...type.micro, color: colors.textMuted, fontWeight: '600' },
-  note: { ...type.caption, color: colors.textMuted, marginTop: space(1), marginHorizontal: space(0.5) },
+  value: { fontSize: 14.5, color: colors.textMuted, maxWidth: '45%' },
+  lockPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.ink },
+  lockText: { ...type.micro, color: '#fff', fontWeight: '700' },
+  note: { ...type.caption, color: colors.textMuted, marginTop: space(1), marginHorizontal: space(1) },
 });

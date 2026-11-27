@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassBackdrop } from '../../src/components/Glass';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BackHeader } from '../../src/components/TopBar';
@@ -66,6 +67,8 @@ export default function ProjectDetail() {
     ]);
 
   return (
+    <GlassBackdrop>
+
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <BackHeader
         title={project?.title ?? 'Project'}
@@ -109,11 +112,12 @@ export default function ProjectDetail() {
         />
       )}
     </SafeAreaView>
+    </GlassBackdrop>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   header: { paddingHorizontal: space(2), paddingTop: space(2.5) },
   bigIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center', marginBottom: space(1.5) },

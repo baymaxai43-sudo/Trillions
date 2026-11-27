@@ -15,6 +15,6 @@ export function Avatar({ photo, initial, size = 32 }: { photo?: string | null; i
 
 const s = StyleSheet.create({
   img: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  fallback: { backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  initial: { color: colors.accentDark, fontWeight: '600' },
+  fallback: { backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center' },
+  initial: { color: '#FFFFFF', fontWeight: '700' },
 });

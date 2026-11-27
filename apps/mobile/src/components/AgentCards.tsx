@@ -10,8 +10,10 @@ const toggle = (set: (f: (v: boolean) => boolean) => void) => {
   set((v) => !v);
 };
 
-function Dot({ status }: { status: 'running' | 'ok' | 'error' | 'pending' | 'skipped' }) {
-  if (status === 'running') return <ActivityIndicator size="small" color={colors.accent} style={s.spinner} />;
+function Dot({ status, onDark }: { status: 'running' | 'ok' | 'error' | 'pending' | 'skipped'; onDark?: boolean }) {
+  if (status === 'running') return <ActivityIndicator size="small" color={onDark ? '#fff' : colors.accent} style={s.spinner} />;
+  if (onDark && status === 'ok') return <Ionicons name="checkmark" size={17} color="#3DDC84" />;
+  if (onDark && status === 'error') return <Ionicons name="close" size={17} color="#FF7A6E" />;
   const color = status === 'ok' ? colors.accent : status === 'error' ? colors.danger : colors.borderStrong;
   return <View style={[s.dot, { backgroundColor: color }]} />;
 }
@@ -50,16 +52,16 @@ export function ToolCard({ item }: { item: Extract<ChatItem, { kind: 'tool' }> }
   const hint = argHint(item.args);
   const detail = item.summary ?? hint;
   return (
-    <View style={[s.card, item.depth > 0 && s.nested]}>
-      <Pressable onPress={() => detail && toggle(setOpen)} style={s.head} hitSlop={4}>
-        <Dot status={item.status} />
-        <Text style={s.label} numberOfLines={1}>
+    <View style={[s.chipWrap, item.depth > 0 && s.nested]}>
+      <Pressable onPress={() => detail && toggle(setOpen)} style={({ pressed }) => [s.chip, pressed && s.pressed]} hitSlop={4}>
+        <Dot status={item.status} onDark />
+        <Text style={s.chipLabel} numberOfLines={1}>
           {item.depth > 0 ? 'Subtask · ' : ''}{toolLabel(item.name)}
         </Text>
-        {!!detail && <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={15} color={colors.textFaint} />}
+        {!!detail && <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color="rgba(255,255,255,0.6)" />}
       </Pressable>
       {open && !!detail && (
-        <Text style={[s.detail, item.status === 'error' && s.bad]} selectable>{detail}</Text>
+        <Text style={[s.detail, s.detailOpen, item.status === 'error' && s.bad]} selectable>{detail}</Text>
       )}
     </View>
   );
@@ -112,10 +114,14 @@ export function ErrorCard({ message, onRetry }: { message: string; onRetry?: () 
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  card: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.bg, paddingHorizontal: space(1.5), paddingVertical: space(1.1), marginVertical: 4, marginLeft: 22 + space(1.25) },
-  nested: { marginLeft: 22 + space(3.5) },
+  card: { borderWidth: StyleSheet.hairlineWidth * 2, borderColor: colors.glassLine, borderRadius: radius.card, backgroundColor: colors.cardStrong, paddingHorizontal: space(2), paddingVertical: space(1.5), marginVertical: 5, marginRight: '8%' },
+  nested: { marginLeft: space(2) },
+  chipWrap: { alignSelf: 'flex-start', maxWidth: '92%', marginVertical: 5 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: space(1), alignSelf: 'flex-start', maxWidth: '100%', minHeight: 44, paddingLeft: space(1.75), paddingRight: space(2), borderRadius: 999, backgroundColor: colors.ink },
+  chipLabel: { flexShrink: 1, fontSize: 14, color: '#fff', fontWeight: '600' },
+  detailOpen: { backgroundColor: colors.cardStrong, borderRadius: 16, padding: space(1.5), marginTop: 6, overflow: 'hidden' },
   cardPending: { borderColor: colors.accent },
-  errorCard: { borderColor: '#F5D0D0', backgroundColor: colors.dangerSoft, gap: space(1), marginLeft: 0 },
+  errorCard: { borderColor: '#F5D0D0', backgroundColor: colors.dangerSoft, gap: space(1) },
   pressed: { opacity: 0.7 },
   head: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
   label: { flex: 1, ...type.secondary, fontSize: 14, color: colors.text, fontWeight: '500' },
@@ -130,8 +136,8 @@ const s = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginHorizontal: 4 },
   spinner: { transform: [{ scale: 0.7 }], width: 16, height: 16 },
   artifact: { flexDirection: 'row', alignItems: 'center', gap: space(1.5) },
-  fileIcon: { width: 34, height: 40, borderRadius: 6, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  fileExt: { color: colors.accentDark, fontSize: 10, fontWeight: '700' },
-  retry: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.bg, borderRadius: radius.sm, paddingHorizontal: space(1.25), paddingVertical: 6 },
+  fileIcon: { width: 34, height: 40, borderRadius: 8, backgroundColor: '#EEF1F5', borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  fileExt: { color: colors.text, fontSize: 10, fontWeight: '700' },
+  retry: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: '#fff', borderRadius: 999, paddingHorizontal: space(1.5), paddingVertical: 7 },
   retryText: { ...type.caption, color: colors.text, fontWeight: '600' },
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassBackdrop } from '../../src/components/Glass';
 import { Avatar } from '../../src/components/Avatar';
 import { BackHeader } from '../../src/components/TopBar';
 import { Row, Section } from '../../src/components/SettingsUI';
@@ -28,6 +29,8 @@ export default function Profile() {
   };
 
   return (
+    <GlassBackdrop>
+
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <BackHeader title="Profile" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -51,11 +54,12 @@ export default function Profile() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </GlassBackdrop>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   body: { padding: space(2), paddingBottom: space(5) },
   top: { alignItems: 'center', paddingVertical: space(2), gap: 4 },
   name: { ...type.title, fontSize: 19, color: colors.text, marginTop: space(1) },

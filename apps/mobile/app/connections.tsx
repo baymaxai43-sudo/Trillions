@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassBackdrop } from '../src/components/Glass';
 import { useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
@@ -110,6 +111,8 @@ export default function Connections() {
   };
 
   return (
+    <GlassBackdrop>
+
     <SafeAreaView style={s.safe}>
       <BackHeader title="Connected accounts" />
       <ScrollView contentContainerStyle={s.body} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.primary} />}>
@@ -166,15 +169,16 @@ export default function Connections() {
         ))}
       </ScrollView>
     </SafeAreaView>
+    </GlassBackdrop>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   body: { padding: space(2), gap: space(1.5) },
   lead: { ...type.secondary, color: colors.textMuted, marginBottom: space(0.5) },
   flex: { flex: 1 },
-  card: { backgroundColor: colors.bg, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: space(1.75), gap: space(1.5) },
+  card: { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderRadius: radius.md, padding: space(1.75), gap: space(1.5) },
   row: { flexDirection: 'row', alignItems: 'center', gap: space(1.5) },
   logo: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   logoOn: { backgroundColor: colors.accentSoft, borderColor: '#BFEBD8' },
@@ -185,9 +189,9 @@ const s = StyleSheet.create({
   btn: { height: 34, paddingHorizontal: space(1.5), borderRadius: radius.sm, backgroundColor: colors.accentDark, alignItems: 'center', justifyContent: 'center' },
   btnDisabled: { opacity: 0.45 },
   btnText: { ...type.caption, color: '#fff', fontWeight: '600' },
-  btnGhost: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border },
+  btnGhost: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   btnGhostText: { ...type.caption, color: colors.text, fontWeight: '500' },
   keyBox: { gap: space(1) },
-  input: { height: 46, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, paddingHorizontal: space(1.5), color: colors.text, ...type.secondary },
+  input: { height: 46, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: space(1.5), color: colors.text, ...type.secondary },
   hint: { ...type.caption, color: colors.textMuted },
 });

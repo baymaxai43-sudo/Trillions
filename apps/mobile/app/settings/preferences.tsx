@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GlassBackdrop } from '../../src/components/Glass';
 import { Ionicons } from '@expo/vector-icons';
 import { BackHeader } from '../../src/components/TopBar';
 import { Note, Row, Section } from '../../src/components/SettingsUI';
@@ -35,6 +36,8 @@ export default function Preferences() {
   const check = (id: string) => (selected === id ? <Ionicons name="checkmark" size={18} color={colors.accentDark} /> : null);
 
   return (
+    <GlassBackdrop>
+
     <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
       <BackHeader title="Preferences" />
       <ScrollView contentContainerStyle={s.body}>
@@ -64,10 +67,11 @@ export default function Preferences() {
         <Text style={{ height: space(2) }} />
       </ScrollView>
     </SafeAreaView>
+    </GlassBackdrop>
   );
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   body: { padding: space(2), paddingBottom: space(5) },
 });
