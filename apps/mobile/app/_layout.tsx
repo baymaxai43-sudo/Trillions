@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { router, Stack, useSegments } from 'expo-router';
+import { router, Stack, useRootNavigationState, useSegments } from 'expo-router';
+import { ScrollView, Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -18,6 +19,7 @@ type Onboard = 'unknown' | 'yes' | 'no';
 function Gate() {
   const { session, loading } = useSession();
   const segments = useSegments() as string[];
+  const navReady = !!useRootNavigationState()?.key;
   const first = segments[0] ?? '';
   const onPublic = PUBLIC.has(first);
   const onWelcome = first === 'welcome';
@@ -59,10 +61,23 @@ function Gate() {
   }, [loading, session, onboard]);
 
   useEffect(() => {
-    if (!target) return;
-    if (router.canDismiss()) router.dismissAll();
-    router.replace(target);
-  }, [target]);
+    if (!target || !navReady) return;
+    const t = setTimeout(() => {
+      try {
+        if (router.canDismiss()) router.dismissAll();
+        router.replace(target);
+      } catch (e) {
+        console.warn('nav', e);
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, [target, navReady]);
+
+  // Never leave the splash up forever.
+  useEffect(() => {
+    const t = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -84,5 +99,19 @@ export default function Root() {
         <Gate />
       </SessionProvider>
     </SafeAreaProvider>
+  );
+}
+
+/** Shows the error instead of a blank screen if anything crashes. */
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
+  return (
+    <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' }}>
+      <Text style={{ fontSize: 20, fontWeight: '600', color: '#0B1F17' }}>Something went wrong</Text>
+      <Text selectable style={{ marginTop: 8, color: '#5B6B64' }}>{String(error?.message ?? error)}</Text>
+      <Text onPress={() => retry()} style={{ marginTop: 20, color: '#047857', fontWeight: '600' }}>Try again</Text>
+    </ScrollView>
   );
 }
