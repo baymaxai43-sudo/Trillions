@@ -2,13 +2,27 @@
 // Runs as an Edge Function because Render's free tier blocks outbound SMTP.
 import { Webhook } from 'npm:standardwebhooks@1.0.0';
 import nodemailer from 'npm:nodemailer@6.9.16';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  auth: { user: Deno.env.get('SMTP_USER'), pass: (Deno.env.get('SMTP_PASS') ?? '').replace(/\s+/g, '') },
-});
+// App password lives in env SMTP_PASS or in private.app_secrets (read via service role).
+let transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
+async function getTransporter() {
+  if (transporter) return transporter;
+  let pass = Deno.env.get('SMTP_PASS') ?? '';
+  if (!pass) {
+    const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const { data, error } = await sb.rpc('get_app_secret', { p_name: 'SMTP_PASS' });
+    if (error) throw new Error(`smtp secret: ${error.message}`);
+    pass = (data as string) ?? '';
+  }
+  transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: { user: Deno.env.get('SMTP_USER'), pass: pass.replace(/\s+/g, '') },
+  });
+  return transporter;
+}
 
 const COPY: Record<string, { heading: string; line: string }> = {
   signup: { heading: 'Welcome to TRILLION', line: 'Enter this code in the app to confirm your email.' },
@@ -31,7 +45,7 @@ function html(heading: string, line: string, code: string) {
 
 async function send(to: string, code: string, type: string) {
   const c = COPY[type] ?? COPY.signup;
-  await transporter.sendMail({
+  await (await getTransporter()).sendMail({
     from: `TRILLION <${Deno.env.get('SMTP_USER')}>`,
     to,
     subject: `${code} is your TRILLION code`,
