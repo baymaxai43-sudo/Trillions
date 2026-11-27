@@ -100,6 +100,27 @@ export type AgentEvent = { seq?: number; depth?: number } & (
    */
   | { type: 'status'; status?: RunStatus; text?: string }
   | { type: 'usage'; inputTokens: number; outputTokens: number }
+  /** The agent reacted to the user's latest message with a tapback emoji (also persisted as a marker in the reply). */
+  | { type: 'reaction'; emoji: string }
   | { type: 'error'; message: string }
   | { type: 'done'; status: RunStatus }
 );
+
+/** Tapback emojis the agent may react with. */
+export const REACTION_EMOJIS = ['👍', '❤️', '😂', '🔥', '🎉', '👀', '🙏', '✅'] as const;
+export type ReactionEmoji = (typeof REACTION_EMOJIS)[number];
+
+/** Hidden marker saved in the assistant reply so the reaction survives reloads: <!--trillion-react:👍--> */
+export const reactionMarker = (emoji: string) => `<!--trillion-react:${emoji}-->`;
+const REACTION_RE = /<!--trillion-react:([^>]{1,16}?)-->[ \t]*(\r?\n)?/g;
+
+/** Removes reaction markers (for model history). */
+export const stripReactionMarkers = (text: string) => text.replace(REACTION_RE, '');
+
+/** First reaction emoji in a reply, if any. */
+export function readReaction(text: string): string | null {
+  REACTION_RE.lastIndex = 0;
+  const m = REACTION_RE.exec(text);
+  REACTION_RE.lastIndex = 0;
+  return m ? m[1] : null;
+}

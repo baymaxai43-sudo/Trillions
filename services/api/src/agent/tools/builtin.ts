@@ -1,3 +1,4 @@
+import { REACTION_EMOJIS } from '@trillion/shared';
 import { isValidTimezone, nextRun } from '../schedule-util';
 import { redact } from '../secrets';
 import { cap, int, obj, str, ToolDef } from './types';
@@ -243,5 +244,27 @@ export const showSummary: ToolDef = {
     const id = Math.random().toString(36).slice(2, 10);
     const block = `\n\n\`\`\`${SUMMARY_FENCE}\n${JSON.stringify({ id, title, markdown })}\n\`\`\`\n`;
     return { ok: true, summary: `Summary: ${title}`, content: 'Summary card shown.', reply: block };
+  },
+};
+
+/**
+ * A tapback on the user's latest message (like iMessage). It never replaces the answer: the model
+ * still replies normally. The runner emits a `reaction` event and keeps a hidden marker in the reply.
+ */
+export const reactToMessage: ToolDef = {
+  name: 'react_to_message',
+  description:
+    "React to the user's latest message with one emoji tapback. Use sparingly: only when the user shares good news, thanks you, makes a joke, " +
+    'or confirms something. Never on routine requests or questions. At most once per user message. Always still write your normal reply afterwards.',
+  parameters: obj({ emoji: { type: 'string', enum: [...REACTION_EMOJIS], description: 'One of the allowed emojis' } }, ['emoji']),
+  private: false,
+  topLevelOnly: true,
+  progress: () => 'Reacting',
+  async run(args) {
+    const emoji = String(args.emoji ?? '').trim();
+    if (!(REACTION_EMOJIS as readonly string[]).includes(emoji)) {
+      return { ok: false, summary: 'Unsupported emoji', content: `Use exactly one of: ${REACTION_EMOJIS.join(' ')}` };
+    }
+    return { ok: true, summary: `Reacted ${emoji}`, content: 'Reaction shown. Now write your normal reply.', reaction: emoji };
   },
 };

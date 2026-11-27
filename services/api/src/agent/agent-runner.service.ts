@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { reactionMarker, stripReactionMarkers } from '@trillion/shared';
 import type { AgentEvent, PlanStep, PlanStepStatus, RunStatus } from '@trillion/shared';
 import { AgentMessage, KeyPool, routeToolTurn, ToolSpec } from '@trillion/ai-providers';
 import { ConnectionsService } from '../connect/connections.service';
@@ -174,7 +175,8 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
   private async execute(runId: string, conversationId: string, input: StartInput, signal: AbortSignal) {
     const connected = await this.connections.connectedProviders(input.userId).catch(() => [] as ConnectorId[]);
     // Secrets pasted into chat never reach the model: they are replaced with a [REDACTED …] marker.
-    const clean = input.messages.map((m) => ({ role: m.role, content: redact(m.content) }));
+    // Reaction markers in earlier replies are UI-only: the model never sees them.
+    const clean = input.messages.map((m) => ({ role: m.role, content: redact(m.role === 'assistant' ? stripReactionMarkers(m.content) : m.content) }));
     const history: AgentMessage[] = clean.slice(0, -1).map((m) => ({ role: m.role, content: m.content }) as AgentMessage);
     const goal = clean[clean.length - 1].content;
     // URLs the user typed are trusted fetch targets even after private data was read.
@@ -338,12 +340,24 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
       o.depth === 0
         ? [
             'Reply format (keep it short, like a sharp colleague texting back):',
-            '- Your visible reply is at most 3 short paragraphs of plain Markdown prose: no headings, minimal lists, small inline `code` only.',
-            '- Anything longer (reports, plans, reviews, explanations with sections, changelogs, long code walkthroughs, tables) goes into ONE call to show_summary({title, markdown}). The user taps the card to read it full screen.',
+            '- Replies are GitHub-flavored Markdown, rendered in the app. Your visible reply is at most 3 short paragraphs: short sentences, bullet lists for steps, small inline `code`.',
+            '- Never answer with a bare JSON object, and never wrap the whole reply in JSON (no {"reply": …}, {"response": …}). Write prose.',
+            '- Code always goes in a fenced block with a language tag (```ts, ```bash, ```sql, ```json, ```python …), one short snippet at most in the reply itself.',
+            '- JSON only when the user asks for JSON, and then inside a ```json fence.',
+            '- Tables only when comparing several things side by side. Never print tool-call syntax, function-call JSON or plan JSON: call tools through the tool API only.',
+            '- Anything longer (reports, plans, reviews, explanations with sections, changelogs, long code walkthroughs, tables) goes into ONE call to show_summary({title, markdown}). The user taps the card to read it full screen. The summary markdown follows the same rules (headings, lists, fenced code with language tags).',
             '- After show_summary, your reply only says in a sentence or two what the summary holds and the key takeaway. Never paste the summary content into the reply too.',
-            '- Never write raw JSON, tool-call syntax or plan JSON in replies; call tools through the tool API only. Link PRs, commits and deployments you created.',
+            '- Link PRs, commits and deployments you created.',
           ].join('\n')
-        : 'Reply format: concise Markdown. Never write raw JSON or tool-call syntax.',
+        : 'Reply format: concise GitHub-flavored Markdown. Code in fenced blocks with a language tag. Never write raw JSON or tool-call syntax.',
+      o.depth === 0
+        ? [
+            'Reactions: you can put a tapback on the user\'s message with react_to_message({emoji}) (👍 ❤️ 😂 🔥 🎉 👀 🙏 ✅).',
+            '- React sparingly, only when it fits: the user shares good news (🎉 🔥), thanks you (❤️ 🙏), makes a joke (😂), or confirms something (👍 ✅).',
+            '- Never react to routine requests or questions. At most one reaction per user message.',
+            '- A reaction never replaces the answer: after reacting, still reply normally.',
+          ].join('\n')
+        : '',
     ]
       .filter(Boolean)
       .join('\n\n');
@@ -382,6 +396,9 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
     const messages: AgentMessage[] = [{ role: 'system', content: await this.systemPrompt(o) }, ...o.history, { role: 'user', content: o.goal }];
     let finalText = '';
     let nudged = false;
+    // Tapback on the user's message: emitted live and saved as a hidden marker at the top of the reply.
+    let reaction = '';
+    const withReaction = (t: string) => (reaction ? `${reaction}\n${t}` : t);
 
     for (let step = 0; step < o.maxSteps; step++) {
       if (o.signal.aborted) return { ok: false, text: finalText || 'Cancelled.' };
@@ -424,7 +441,7 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
           });
           continue;
         }
-        return { ok: true, text: finalText };
+        return { ok: true, text: withReaction(finalText) };
       }
 
       messages.push({ role: 'assistant', content: turnText || null, tool_calls: calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments || '{}' }, ...(c.extra ? { extra_content: c.extra } : {}) })) });
@@ -455,7 +472,16 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
           result = unconnected
             ? { ok: false, summary: `${unconnected} is not connected`, content: `Call request_connection with provider "${unconnected}" so the user can connect it.` }
             : { ok: false, summary: `Unknown tool ${call.name}` };
+        } else if (tool.name === 'react_to_message' && reaction) {
+          result = { ok: false, summary: 'Already reacted', content: 'You already reacted to this message. Just reply.' };
         } else result = await this.invoke(o, tool, call.id, args);
+
+        if (result.ok && result.reaction && o.depth === 0 && !reaction) {
+          reaction = reactionMarker(result.reaction);
+          this.emit(o.runId, { type: 'reaction', emoji: result.reaction });
+          // Also in the delta stream so the live reply text matches what gets saved.
+          this.emit(o.runId, { type: 'delta', text: `${reaction}\n` });
+        }
 
         if (result.ok && result.reply && o.depth === 0) {
           // e.g. a summary card: part of the visible (and persisted) reply, bypassing the tool-call text filter.
@@ -488,7 +514,7 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
       if (ev.type === 'usage') this.track(o.runId, ev);
     }
     show(filter.flush());
-    return { ok: true, text: [finalText, tail].filter(Boolean).join('\n\n') };
+    return { ok: true, text: withReaction([finalText, tail].filter(Boolean).join('\n\n')) };
   }
 
   private sec(runId: string): RunSecurity {

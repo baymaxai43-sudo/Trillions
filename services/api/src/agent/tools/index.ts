@@ -1,5 +1,5 @@
 import { ConnectorId } from '../../connect/providers';
-import { cancelScheduledTask, createFile, forget, getTime, listScheduledTasks, recall, remember, runCode, scheduleTask, showSummary, spawnSubtask } from './builtin';
+import { cancelScheduledTask, createFile, forget, getTime, listScheduledTasks, reactToMessage, recall, remember, runCode, scheduleTask, showSummary, spawnSubtask } from './builtin';
 import { requestConnection } from './connect';
 import { githubTools } from './github';
 import { googleTools } from './google';
@@ -12,7 +12,7 @@ import { fetchUrl, webSearch } from './web';
 
 export const ALL_TOOLS: ToolDef[] = [
   getTime, remember, recall, forget, fetchUrl, webSearch, createFile, spawnSubtask,
-  scheduleTask, listScheduledTasks, cancelScheduledTask, runCode, requestConnection, showSummary,
+  scheduleTask, listScheduledTasks, cancelScheduledTask, runCode, requestConnection, showSummary, reactToMessage,
   ...githubTools, ...vercelTools, ...renderTools, ...supabaseTools, ...netlifyTools, ...googleTools,
 ];
 

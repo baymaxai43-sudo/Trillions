@@ -11,6 +11,8 @@ export interface ToolResult {
   content?: string;
   /** Text appended to the visible assistant reply (top-level runs only), e.g. a summary card block. */
   reply?: string;
+  /** Tapback emoji on the user's latest message (top-level runs only). */
+  reaction?: string;
 }
 
 /** Per-run security state shared by the runner and tools (prompt-injection containment). */

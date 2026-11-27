@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { stripReactionMarkers } from '@trillion/shared';
 import type { ChatRequest, StreamEvent } from '@trillion/shared';
 import { KeyPool, routeStream } from '@trillion/ai-providers';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -39,7 +40,7 @@ export class ChatService {
     let provider = '';
     let usage = { inputTokens: 0, outputTokens: 0 };
 
-    for await (const ev of routeStream({ model: req.model, messages: req.messages, signal }, this.pool)) {
+    for await (const ev of routeStream({ model: req.model, messages: req.messages.map((m) => (m.role === 'assistant' ? { ...m, content: stripReactionMarkers(m.content) } : m)), signal }, this.pool)) {
       if (ev.type === 'meta') {
         model = ev.model;
         provider = ev.provider;
