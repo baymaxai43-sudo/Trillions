@@ -1,0 +1,32 @@
+# Render Blueprint: TRILLION API on the free plan, Frankfurt (next to Supabase eu-central-1).
+# Secrets are marked sync:false and set in the Render dashboard, never committed.
+services:
+  - type: web
+    name: trillion-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm ci --include=dev && npm run build -w @trillion/shared && npm run build -w @trillion/ai-providers && npm run build -w @trillion/api
+    startCommand: npm run start -w @trillion/api
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GROQ_API_KEYS
+        sync: false
+      - key: OPENROUTER_API_KEYS
+        sync: false
+      - key: GEMINI_API_KEYS
+        sync: false
+      - key: CORS_ORIGINS
+        value: ""
