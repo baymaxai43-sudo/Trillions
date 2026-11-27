@@ -38,7 +38,31 @@ export type PendingConfirmation = { runId: string; id: string; tool: string; sum
 export const toHistory = (items: ChatItem[]): Msg[] =>
   items
     .filter((i): i is Extract<ChatItem, { kind: 'user' | 'assistant' }> => (i.kind === 'user' || i.kind === 'assistant') && !!i.content)
-    .map((i) => ({ role: i.kind, content: i.content }));
+    // The API caps each message at 40k chars; a reply with a big summary card could exceed it.
+    .map((i) => ({ role: i.kind, content: i.content.length > 40_000 ? `${i.content.slice(0, 39_900)}\n…(truncated)` : i.content }));
+
+/** What the status pill shows while a run is busy. */
+export type LiveStatus = { text: string | null; streamingText: boolean };
+export const IDLE_STATUS: LiveStatus = { text: null, streamingText: false };
+
+/**
+ * Folds one agent event into the live status: the latest progress line ("Reading src/app.ts"),
+ * and whether reply text is streaming right now (the pill hides then, and comes back on the next step).
+ */
+export function nextStatus(prev: LiveStatus, ev: { type?: string; text?: unknown; depth?: number }): LiveStatus {
+  switch (ev.type) {
+    case 'status':
+      return typeof ev.text === 'string' && ev.text ? { text: ev.text, streamingText: false } : prev;
+    case 'delta':
+      return !ev.depth && typeof ev.text === 'string' && ev.text.trim() ? (prev.streamingText ? prev : { ...prev, streamingText: true }) : prev;
+    case 'tool_call':
+    case 'plan':
+    case 'pending_confirmation':
+      return prev.streamingText ? { ...prev, streamingText: false } : prev;
+    default:
+      return prev;
+  }
+}
 
 /** Starts an agent run and streams its events. The run keeps going server-side if this detaches. */
 export function streamAgent(messages: Msg[], opts: { conversationId?: string; model?: string }, handlers: SseHandlers) {

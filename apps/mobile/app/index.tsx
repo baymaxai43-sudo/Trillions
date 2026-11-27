@@ -24,7 +24,7 @@ import { TopBar } from '../src/components/TopBar';
 import { ArtifactCard, ConfirmCard, ErrorCard, PlanCard, ToolCard } from '../src/components/AgentCards';
 import { ConfirmSheet } from '../src/components/ConfirmSheet';
 import { ConnectCard } from '../src/components/ConnectCard';
-import { TypingDots } from '../src/components/TypingDots';
+import { StatusPill } from '../src/components/StatusPill';
 import { ThreadSkeleton } from '../src/components/Skeleton';
 import { streamChat } from '../src/lib/chat';
 import {
@@ -33,6 +33,9 @@ import {
   mk,
   confirmAction,
   getRun,
+  IDLE_STATUS,
+  LiveStatus,
+  nextStatus,
   PendingConfirmation,
   reattachRun,
   RunRecord,
@@ -76,6 +79,7 @@ export default function Chat() {
   const [loadingThread, setLoadingThread] = useState(false);
   const [draft, setDraft] = useState('');
   const [scrolled, setScrolled] = useState(false);
+  const [live, setLive] = useState<LiveStatus>(IDLE_STATUS);
   const busy = phase !== 'idle';
 
   const conv = useRef<string | undefined>();
@@ -118,6 +122,7 @@ export default function Chat() {
     if (wakeTimer.current) clearTimeout(wakeTimer.current);
     stopPolling();
     setPhaseBoth('idle');
+    setLive(IDLE_STATUS);
     // Pick up the server-generated title for a new conversation.
     const id = conv.current;
     if (id && firstUserText.current) {
@@ -175,6 +180,7 @@ export default function Chat() {
         if (ev.type === 'delta') replayText.current += ev.text ?? '';
         if (ev.type !== 'done' && ev.type !== 'error' && ev.type !== 'connect_request') return;
       }
+      setLive((p) => nextStatus(p, ev));
       switch (ev.type) {
         case 'meta':
           if (ev.conversationId) conv.current = ev.conversationId;
@@ -338,6 +344,7 @@ export default function Chat() {
 
   const start = (history: ReturnType<typeof toHistory>) => {
     setPhaseBoth('connecting');
+    setLive(IDLE_STATUS);
     lastEventAt.current = Date.now();
     if (wakeTimer.current) clearTimeout(wakeTimer.current);
     wakeTimer.current = setTimeout(() => {
@@ -366,6 +373,7 @@ export default function Chat() {
       onEvent: (ev) => {
         lastEventAt.current = Date.now();
         if (phaseRef.current !== 'streaming') setPhaseBoth('streaming');
+        setLive((p) => nextStatus(p, ev));
         if (ev.type === 'meta' && ev.conversationId) conv.current = ev.conversationId;
         if (ev.type === 'delta' && ev.text) appendText(ev.text);
         if (ev.type === 'error') {
@@ -439,6 +447,7 @@ export default function Chat() {
     setTitle(null);
     setPending(null);
     setLoadingThread(false);
+    setLive(IDLE_STATUS);
     setPhaseBoth('idle');
   }, []);
 
@@ -479,9 +488,9 @@ export default function Chat() {
   // ---------- rendering ----------
 
   const lastUserIdx = useMemo(() => items.map((i) => i.kind).lastIndexOf('user'), [items]);
-  const hasReplyText = useMemo(() => items.slice(lastUserIdx + 1).some((i) => i.kind === 'assistant' && i.content.length > 0), [items, lastUserIdx]);
-  const showTyping = busy && (!hasReplyText || phase === 'polling');
-  const typingLabel = phase === 'waking' ? 'Waking up TRILLION\u2026' : phase === 'polling' ? 'Still working\u2026' : null;
+  // The pill shows what the agent is doing; it steps aside while reply text is actively streaming.
+  const showStatus = busy && (!live.streamingText || phase === 'polling');
+  const statusText = phase === 'waking' ? 'Waking up TRILLION' : phase === 'polling' ? 'Still working' : pending ? 'Waiting for your approval' : live.text;
 
   /** Logo mark only on the first assistant text after each user message. */
   const markKeys = useMemo(() => {
@@ -581,7 +590,7 @@ export default function Chat() {
             keyboardDismissMode="interactive"
             removeClippedSubviews={false}
             maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: 80 }}
-            ListHeaderComponent={showTyping ? <View style={s.typing}><TypingDots label={typingLabel} /></View> : null}
+            ListHeaderComponent={showStatus ? <StatusPill text={statusText} /> : null}
           />
         )}
         <Composer
@@ -612,7 +621,6 @@ const s = StyleSheet.create({
   chip: { borderWidth: StyleSheet.hairlineWidth * 2, borderColor: colors.glassLine, borderRadius: 999, paddingHorizontal: space(1.75), paddingVertical: space(1.1), backgroundColor: 'rgba(255,255,255,0.55)', maxWidth: '100%' },
   chipPressed: { backgroundColor: 'rgba(255,255,255,0.85)' },
   chipText: { ...type.caption, fontSize: 14, color: colors.text, fontWeight: '500' },
-  typing: { paddingLeft: space(0.5) },
   threadHead: { flexDirection: 'row', alignItems: 'center', paddingLeft: space(2.5), paddingRight: space(1.5), paddingVertical: 4 },
   threadTitle: { flex: 1, ...type.caption, color: colors.textMuted, fontWeight: '500' },
   newBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
