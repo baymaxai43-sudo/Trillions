@@ -12,14 +12,15 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#062A1E"
-      }
+      },
+      "versionCode": 1
     },
     "plugins": [
       "expo-router",
       "expo-secure-store"
     ],
     "extra": {
-      "apiUrl": "http://10.0.2.2:4000"
+      "apiUrl": "https://trillion-api.onrender.com"
     },
     "icon": "./assets/icon.png",
     "splash": {

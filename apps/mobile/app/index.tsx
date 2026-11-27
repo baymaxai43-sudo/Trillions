@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '../src/lib/supabase';
 import { FlatList, Image, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -13,6 +14,16 @@ export default function Chat() {
   const [busy, setBusy] = useState(false);
   const conv = useRef<string | undefined>();
   const stopRef = useRef<() => void>();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) router.replace('/auth');
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (!session) router.replace('/auth');
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   const send = async (text: string) => {
     const next: Msg[] = [...messages, { role: 'user', content: text }];

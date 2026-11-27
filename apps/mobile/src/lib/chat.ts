@@ -14,13 +14,16 @@ export async function streamChat(
   const { data } = await supabase.auth.getSession();
   const xhr = new XMLHttpRequest();
   let seen = 0;
+  let buffer = '';
   xhr.open('POST', `${API}/v1/chat/stream`);
   xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.setRequestHeader('Authorization', `Bearer ${data.session?.access_token ?? ''}`);
   xhr.onprogress = () => {
-    const chunk = xhr.responseText.slice(seen);
+    buffer += xhr.responseText.slice(seen);
     seen = xhr.responseText.length;
-    for (const line of chunk.split('\n')) {
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? ''; // keep a partial line for the next chunk
+    for (const line of lines) {
       if (line.startsWith('data: ')) {
         try {
           onEvent(JSON.parse(line.slice(6)));
