@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Ref, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, space, type } from '../theme';
@@ -19,6 +19,7 @@ export function Composer({
   value,
   onChangeValue,
   placeholder = 'Message TRILLION',
+  inputRef,
 }: {
   busy: boolean;
   onSend: (t: string) => void;
@@ -28,6 +29,8 @@ export function Composer({
   value?: string;
   onChangeValue?: (t: string) => void;
   placeholder?: string;
+  /** Lets the screen focus the input (e.g. after Reply on a summary). */
+  inputRef?: Ref<TextInput>;
 }) {
   const [own, setOwn] = useState('');
   const text = value ?? own;
@@ -58,6 +61,7 @@ export function Composer({
     <View style={s.outer}>
       <View style={[s.pill, inputH > LINE + 2 && s.pillTall]}>
         <TextInput
+          ref={inputRef}
           style={[s.input, { height: inputH + 16 }]}
           placeholder={agentMode ? 'Give TRILLION a task' : placeholder}
           placeholderTextColor="rgba(17,18,20,0.45)"

@@ -12,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -45,6 +46,8 @@ import {
 } from '../src/lib/agent';
 import { ensureTitle, getConversation, greeting, loadMessages } from '../src/lib/conversations';
 import { onOpenConversation } from '../src/lib/nav';
+import { onComposerDraft } from '../src/lib/composer';
+import { extractReaction, REACTION_EMOJIS } from '../src/lib/reaction';
 import { getAgentMode, getDefaultModel, setAgentModePref } from '../src/lib/prefs';
 import { userInfo, useSession } from '../src/lib/session';
 import { publish } from '../src/lib/sync';
@@ -96,6 +99,17 @@ export default function Chat() {
   const phaseRef = useRef<Phase>('idle');
   const listRef = useRef<FlatList<ChatItem>>(null);
   const firstUserText = useRef<string | null>(null);
+  const inputRef = useRef<TextInput>(null);
+
+  // Reply on a summary (or anything else) prefills the composer and focuses it.
+  useEffect(
+    () =>
+      onComposerDraft(({ draft: text, mode }) => {
+        setDraft((cur) => (mode === 'replace' || !cur.trim() ? text : cur.startsWith(text) ? cur : `${text}${cur}`));
+        setTimeout(() => inputRef.current?.focus(), 60);
+      }),
+    [],
+  );
 
   const setPhaseBoth = (p: Phase) => {
     phaseRef.current = p;
@@ -206,7 +220,15 @@ export default function Chat() {
         case 'delta':
           if (!ev.depth && ev.text) appendText(ev.text);
           break;
+        case 'reaction':
+          if (typeof ev.emoji === 'string' && REACTION_EMOJIS.includes(ev.emoji))
+            setItems((m) => {
+              const at = m.map((i) => i.kind).lastIndexOf('user');
+              return at < 0 ? m : m.map((i, k) => (k === at ? { ...(i as Extract<ChatItem, { kind: 'user' }>), reaction: ev.emoji, reactionLive: true } : i));
+            });
+          break;
         case 'tool_call':
+          if (ev.name === 'react_to_message') break; // shown as the tapback, not a tool card
           setItems((m) => [...m, mk({ kind: 'tool', id: ev.id, name: ev.name, args: ev.args ?? {}, status: 'running', depth: ev.depth ?? 0 })]);
           break;
         case 'tool_result':
@@ -506,14 +528,34 @@ export default function Chat() {
     return set;
   }, [items]);
 
+  /** Tapbacks: the first reaction marker in the replies after each user message belongs to that message. */
+  const reactions = useMemo(() => {
+    const map = new Map<string, string>();
+    let user: string | undefined;
+    items.forEach((i) => {
+      if (i.kind === 'user') user = i.key;
+      else if (i.kind === 'assistant' && user && !map.has(user)) {
+        const e = extractReaction(i.content).emoji;
+        if (e) map.set(user, e);
+      }
+    });
+    return map;
+  }, [items]);
+
   const reversed = useMemo(() => [...items].reverse(), [items]);
 
   const render = ({ item }: { item: ChatItem }) => {
     switch (item.kind) {
       case 'user':
-        return <MessageView m={{ role: 'user', content: item.content }} />;
+        return (
+          <MessageView
+            m={{ role: 'user', content: item.content }}
+            reaction={item.reaction ?? (item.key ? reactions.get(item.key) : undefined)}
+            reactionLive={item.reactionLive}
+          />
+        );
       case 'assistant':
-        if (!item.content) return null;
+        if (!extractReaction(item.content).text.trim()) return null;
         return <MessageView m={{ role: 'assistant', content: item.content }} showMark={!!item.key && markKeys.has(item.key)} />;
       case 'plan':
         return <PlanCard steps={item.steps} />;
@@ -601,6 +643,7 @@ export default function Chat() {
           onToggleAgent={toggleAgent}
           value={draft}
           onChangeValue={setDraft}
+          inputRef={inputRef}
         />
       </KeyboardAvoidingView>
       <ConfirmSheet pending={pending} onDecide={decide} />

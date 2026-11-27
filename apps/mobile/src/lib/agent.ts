@@ -8,7 +8,7 @@ export type PlanStep = { title: string; status: PlanStatus };
 
 /** Everything the chat list can show. `key` is a stable id for list rendering. */
 export type ChatItem = { key?: string } & (
-  | { kind: 'user'; content: string }
+  | { kind: 'user'; content: string; reaction?: string; reactionLive?: boolean }
   | { kind: 'assistant'; content: string }
   | { kind: 'plan'; steps: PlanStep[] }
   | { kind: 'tool'; id: string; name: string; args: Record<string, unknown>; status: 'running' | 'ok' | 'error'; summary?: string; depth: number }

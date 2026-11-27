@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import Markdown, { RenderRules } from 'react-native-markdown-display';
+import Markdown from 'react-native-markdown-display';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassBackdrop } from './Glass';
 import { mdBase, openLink } from './markdownStyles';
 import { serif } from './SummaryCard';
+import { copyText, markdownRules } from './CodeBlock';
+import { replyQuote, setComposerDraft } from '../lib/composer';
 import type { Summary } from '../lib/summary';
-import { colors, mono, radius, space } from '../theme';
+import { colors, space } from '../theme';
 
 /** Reading styles: the chat's markdown, a little larger and airier. */
 const mdLarge = StyleSheet.create({
@@ -27,22 +29,6 @@ const mdLarge = StyleSheet.create({
   code_inline: { ...mdBase.code_inline, fontSize: 14.5 },
 });
 
-/** Code blocks scroll sideways instead of wrapping. */
-const rules: RenderRules = {
-  fence: (node) => <CodeBlock key={node.key} code={node.content} />,
-  code_block: (node) => <CodeBlock key={node.key} code={node.content} />,
-};
-
-function CodeBlock({ code }: { code: string }) {
-  return (
-    <ScrollView horizontal style={c.wrap} contentContainerStyle={c.inner} showsHorizontalScrollIndicator={false}>
-      <Text style={c.code} selectable>{code.replace(/\n$/, '')}</Text>
-    </ScrollView>
-  );
-}
-
-const canCopy = () => Platform.OS === 'web' && typeof navigator !== 'undefined' && !!(navigator as any).clipboard?.writeText;
-
 function RoundButton({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} hitSlop={8} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => [b.btn, pressed && { opacity: 0.6 }]}>
@@ -53,11 +39,25 @@ function RoundButton({ icon, label, onPress }: { icon: keyof typeof Ionicons.gly
 }
 
 /** Full-screen reader for a summary card, over a blurred, veiled sky. */
-export function SummarySheet({ summary, onClose }: { summary: Summary | null; onClose: () => void }) {
+export function SummarySheet({
+  summary,
+  onClose,
+  initialMenuOpen = false,
+}: {
+  summary: Summary | null;
+  onClose: () => void;
+  /** Open with the ⋯ menu showing (previews). */
+  initialMenuOpen?: boolean;
+}) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const [menu, setMenu] = useState(false);
+  const [menu, setMenu] = useState(initialMenuOpen);
   const [copied, setCopied] = useState(false);
+  const toast = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => toastTimer.current && clearTimeout(toastTimer.current), []);
+  // Card content width (sheet padding + card padding), for table columns.
+  const rules = useMemo(() => markdownRules(Math.min(width - space(3), 720) - space(5.5)), [width]);
   const [last, setLast] = useState<Summary | null>(summary);
   // Keep the content while the modal animates out.
   useEffect(() => {
@@ -66,7 +66,7 @@ export function SummarySheet({ summary, onClose }: { summary: Summary | null; on
   }, [summary]);
   const shown = summary ?? last;
   const body = useMemo(() => (shown ? shown.markdown : ''), [shown]);
-  const text = shown ? `${shown.title}\n\n${shown.markdown}` : '';
+  const text = shown ? `# ${shown.title}\n\n${shown.markdown}` : '';
 
   const share = async () => {
     setMenu(false);
@@ -78,13 +78,20 @@ export function SummarySheet({ summary, onClose }: { summary: Summary | null; on
   };
   const copy = async () => {
     setMenu(false);
-    try {
-      await (navigator as any).clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      share();
-    }
+    if (!(await copyText(text))) return share();
+    setCopied(true);
+    Animated.spring(toast, { toValue: 1, friction: 6, tension: 140, useNativeDriver: Platform.OS !== 'web' }).start();
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toast, { toValue: 0, duration: 180, useNativeDriver: Platform.OS !== 'web' }).start(() => setCopied(false));
+    }, 1500);
+  };
+  /** Close the sheet and start a follow-up about this summary in the composer. */
+  const reply = () => {
+    setMenu(false);
+    const title = shown?.title ?? 'Summary';
+    onClose();
+    setTimeout(() => setComposerDraft(replyQuote(title)), Platform.OS === 'web' ? 0 : 280);
   };
 
   return (
@@ -95,7 +102,7 @@ export function SummarySheet({ summary, onClose }: { summary: Summary | null; on
           <View style={[StyleSheet.absoluteFill, x.veil]} />
           <View style={[x.bar, { paddingTop: insets.top + space(1) }]}>
             <RoundButton icon="contract-outline" label="Minimize summary" onPress={onClose} />
-            <Text style={x.barTitle}>{copied ? 'Copied' : 'Summary'}</Text>
+            <Text style={x.barTitle}>Summary</Text>
             <RoundButton icon="ellipsis-horizontal" label="More" onPress={() => setMenu((v) => !v)} />
           </View>
           <ScrollView
@@ -112,26 +119,41 @@ export function SummarySheet({ summary, onClose }: { summary: Summary | null; on
               </View>
             )}
           </ScrollView>
+          {copied && (
+            <Animated.View
+              pointerEvents="none"
+              style={[x.toast, { bottom: insets.bottom + space(3), opacity: toast, transform: [{ translateY: toast.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] }]}
+            >
+              {Platform.OS === 'ios' && <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />}
+              <Ionicons name="checkmark-circle" size={16} color="#fff" />
+              <Text style={x.toastText}>Copied</Text>
+            </Animated.View>
+          )}
           {menu && (
             <>
               <Pressable style={StyleSheet.absoluteFill} onPress={() => setMenu(false)} accessibilityLabel="Close menu" />
               <View style={[x.menu, { top: insets.top + space(1) + 52 }]}>
-                {canCopy() && (
-                  <Pressable onPress={copy} style={({ pressed }) => [x.item, pressed && x.itemPressed]} accessibilityRole="button">
-                    <Ionicons name="copy-outline" size={18} color={colors.text} />
-                    <Text style={x.itemText}>Copy</Text>
-                  </Pressable>
-                )}
-                <Pressable onPress={share} style={({ pressed }) => [x.item, pressed && x.itemPressed]} accessibilityRole="button">
-                  <Ionicons name="share-outline" size={18} color={colors.text} />
-                  <Text style={x.itemText}>{canCopy() ? 'Share' : 'Share or copy'}</Text>
-                </Pressable>
+                {Platform.OS === 'ios' && <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />}
+                <MenuItem icon="arrow-undo" label="Reply" onPress={reply} />
+                <View style={x.sep} />
+                <MenuItem icon="copy-outline" label="Copy summary" onPress={copy} />
+                <View style={x.sep} />
+                <MenuItem icon="share-outline" label="Share" onPress={share} />
               </View>
             </>
           )}
         </GlassBackdrop>
       </View>
     </Modal>
+  );
+}
+
+function MenuItem({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [x.item, pressed && x.itemPressed]} accessibilityRole="menuitem" accessibilityLabel={label}>
+      <Text style={x.itemText}>{label}</Text>
+      <Ionicons name={icon} size={18} color={colors.text} />
+    </Pressable>
   );
 }
 
@@ -159,21 +181,36 @@ const x = StyleSheet.create({
   menu: {
     position: 'absolute',
     right: space(2),
-    minWidth: 180,
-    backgroundColor: 'rgba(255,255,255,0.97)',
-    borderRadius: 16,
-    paddingVertical: 6,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: 'rgba(255,255,255,0.9)',
+    width: 220,
+    overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
+    backgroundColor: Platform.OS === 'ios' ? 'rgba(255,255,255,0.8)' : '#FFFFFF',
+    borderRadius: 18,
+    paddingVertical: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(17,18,20,0.08)',
     shadowColor: '#1B2A44',
     shadowOpacity: 0.14,
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
-  item: { flexDirection: 'row', alignItems: 'center', gap: space(1.25), paddingHorizontal: space(2), paddingVertical: space(1.5) },
-  itemPressed: { backgroundColor: 'rgba(17,18,20,0.05)' },
-  itemText: { fontSize: 15.5, color: colors.text, fontWeight: '500' },
+  item: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space(2), paddingVertical: 13 },
+  itemPressed: { backgroundColor: 'rgba(17,18,20,0.06)' },
+  itemText: { fontSize: 16, lineHeight: 21, color: colors.text, fontWeight: '500' },
+  sep: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(17,18,20,0.12)', marginHorizontal: space(2) },
+  toast: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    overflow: 'hidden',
+    paddingHorizontal: space(2),
+    paddingVertical: space(1.1),
+    borderRadius: 999,
+    backgroundColor: 'rgba(21,22,24,0.86)',
+  },
+  toastText: { color: '#fff', fontSize: 14.5, lineHeight: 19, fontWeight: '600' },
 });
 
 const b = StyleSheet.create({
@@ -188,10 +225,4 @@ const b = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth * 2,
     borderColor: 'rgba(255,255,255,0.8)',
   },
-});
-
-const c = StyleSheet.create({
-  wrap: { backgroundColor: '#F5F6F8', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, marginBottom: space(1.75) },
-  inner: { padding: space(1.5) },
-  code: { fontFamily: mono, fontSize: 13.5, lineHeight: 20, color: colors.text },
 });
