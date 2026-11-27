@@ -16,6 +16,7 @@ const enc = encodeURIComponent;
 export const netlifyTools: ToolDef[] = [
   {
     name: 'netlify_list_sites',
+    progress: () => 'Checking Netlify sites',
     provider: 'netlify',
     description: 'List Netlify sites (id, name, URL, repo, last published deploy).',
     parameters: obj({ per_page: int('1-100, default 30') }),
@@ -28,6 +29,7 @@ export const netlifyTools: ToolDef[] = [
   },
   {
     name: 'netlify_list_deploys',
+    progress: () => 'Checking Netlify deploys',
     provider: 'netlify',
     description: 'List recent deploys of a Netlify site with state, branch, commit and error message.',
     parameters: obj({ site_id: str('Site id'), per_page: int('1-30, default 10') }, ['site_id']),
@@ -42,6 +44,7 @@ export const netlifyTools: ToolDef[] = [
   },
   {
     name: 'netlify_trigger_build',
+    progress: () => 'Starting the Netlify build',
     provider: 'netlify',
     confirm: true,
     description: 'Trigger a new build and deploy of a Netlify site from its linked repo.',

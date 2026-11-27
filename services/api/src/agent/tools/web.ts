@@ -30,8 +30,17 @@ const isKnown = (raw: string, known: Set<string>) => {
   return !!k && known.has(k);
 };
 
+const hostOf = (u: unknown) => {
+  try {
+    return new URL(String(u)).hostname.replace(/^www\./, '') || 'a page';
+  } catch {
+    return 'a page';
+  }
+};
+
 export const fetchUrl: ToolDef = {
   name: 'fetch_url',
+  progress: (a) => `Reading ${hostOf(a.url)}`,
   description:
     'Fetch a public web page or text/JSON resource and return its readable text (HTML is stripped). Use for reading specific URLs. ' +
     'After private data has been read in this run, URLs that did not come from web_search or the user need approval and lose their query string.',
@@ -68,6 +77,7 @@ export const fetchUrl: ToolDef = {
 
 export const webSearch: ToolDef = {
   name: 'web_search',
+  progress: (a) => `Searching for “${a.query}”`,
   description: 'Search the web for current information. Returns titles, URLs and snippets; follow up with fetch_url to read a page.',
   parameters: obj({ query: str('Search query'), max_results: int('1-8, default 5') }, ['query']),
   private: false,

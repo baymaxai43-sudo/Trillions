@@ -54,6 +54,7 @@ function formatRows(body: any): { n: number; text: string } {
 export const supabaseTools: ToolDef[] = [
   {
     name: 'supabase_list_projects',
+    progress: () => 'Checking Supabase projects',
     provider: 'supabase',
     description: 'List Supabase projects (ref, name, region, status) the token can access.',
     parameters: obj({}),
@@ -66,6 +67,7 @@ export const supabaseTools: ToolDef[] = [
   },
   {
     name: 'supabase_query',
+    progress: () => 'Querying the database',
     provider: 'supabase',
     description:
       'Run READ-ONLY SQL (one SELECT/WITH/SHOW/EXPLAIN) as the read-only role. Schema-qualify names (public.users). Results capped at 200 rows. ' +
@@ -82,6 +84,7 @@ export const supabaseTools: ToolDef[] = [
   },
   {
     name: 'supabase_execute_sql',
+    progress: () => 'Running SQL on the database',
     provider: 'supabase',
     confirm: true,
     description:
@@ -97,6 +100,7 @@ export const supabaseTools: ToolDef[] = [
   },
   {
     name: 'supabase_list_functions',
+    progress: () => 'Checking edge functions',
     provider: 'supabase',
     description: 'List Edge Functions of a project (slug, status, version, verify_jwt).',
     parameters: obj(ref, ['project_ref']),

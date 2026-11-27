@@ -1,8 +1,10 @@
 import { isValidTimezone, nextRun } from '../schedule-util';
+import { redact } from '../secrets';
 import { cap, int, obj, str, ToolDef } from './types';
 
 export const getTime: ToolDef = {
   name: 'get_time',
+  progress: () => 'Checking the time',
   description: 'Get the current date and time, optionally in an IANA timezone (default Africa/Lagos).',
   parameters: obj({ timezone: str('IANA timezone, e.g. Africa/Lagos') }),
   async run(args) {
@@ -15,6 +17,7 @@ export const getTime: ToolDef = {
 
 export const remember: ToolDef = {
   name: 'remember',
+  progress: () => 'Saving that to memory',
   description:
     'Save a durable fact or preference about the user to long-term memory. Only for things the user would want remembered across conversations. ' +
     'If this run has read web pages or private data, the memory is saved as pending until the user confirms it in Settings.',
@@ -56,6 +59,7 @@ export async function searchMemories(db: any, userId: string, query: string, k =
 
 export const recall: ToolDef = {
   name: 'recall',
+  progress: (a) => `Searching memory for “${a.query ?? ''}”`,
   description: "Search the user's confirmed long-term memory for facts relevant to a query.",
   parameters: obj({ query: str('What to look for') }, ['query']),
   private: true,
@@ -71,6 +75,7 @@ export const recall: ToolDef = {
 
 export const forget: ToolDef = {
   name: 'forget',
+  progress: () => 'Removing a memory',
   description: 'Delete memories that match a query (asks the user first).',
   parameters: obj({ query: str('Text identifying the memory to delete') }, ['query']),
   confirm: true,
@@ -91,6 +96,7 @@ const MIME: Record<string, string> = {
 
 export const createFile: ToolDef = {
   name: 'create_file',
+  progress: (a) => `Writing ${a.filename ?? 'a file'}`,
   description: 'Create a text file (markdown, code, CSV, JSON, HTML…) for the user. It is saved to their private artifacts and shown as a download card.',
   parameters: obj({ filename: str('File name with extension, e.g. report.md'), content: str('Full file content (max 1 MB)') }, ['filename', 'content']),
   async run(args, ctx) {
@@ -112,6 +118,7 @@ export const createFile: ToolDef = {
 
 export const spawnSubtask: ToolDef = {
   name: 'spawn_subtask',
+  progress: () => 'Handing part of this to a subagent',
   description: 'Delegate a self-contained sub-goal (e.g. research one topic) to a subagent with its own step budget. Returns its summary. Use for parallelisable or long side-quests.',
   parameters: obj({ goal: str('Complete, self-contained instructions for the subagent'), max_steps: int('Step budget, 1-8 (default 5)') }, ['goal']),
   topLevelOnly: true,
@@ -123,6 +130,7 @@ export const spawnSubtask: ToolDef = {
 
 export const scheduleTask: ToolDef = {
   name: 'schedule_task',
+  progress: () => 'Setting up the schedule',
   description: 'Schedule a prompt to run as a background agent task later: once at a time, every N minutes (>=15), or daily at HH:MM in a timezone.',
   parameters: obj(
     {
@@ -163,6 +171,7 @@ export const scheduleTask: ToolDef = {
 
 export const listScheduledTasks: ToolDef = {
   name: 'list_scheduled_tasks',
+  progress: () => 'Checking your schedules',
   description: "List the user's scheduled background tasks.",
   parameters: obj({}),
   async run(_a, ctx) {
@@ -175,6 +184,7 @@ export const listScheduledTasks: ToolDef = {
 
 export const cancelScheduledTask: ToolDef = {
   name: 'cancel_scheduled_task',
+  progress: () => 'Cancelling the schedule',
   description: 'Delete a scheduled task by id.',
   parameters: obj({ id: str('Scheduled task id') }, ['id']),
   confirm: true,
@@ -192,6 +202,7 @@ export const cancelScheduledTask: ToolDef = {
  */
 export const runCode: ToolDef = {
   name: 'run_code',
+  progress: (a) => `Running ${a.language === 'python' ? 'Python' : 'JavaScript'} code`,
   description: 'Run a short Python or JavaScript snippet in an isolated cloud sandbox and return stdout/stderr.',
   parameters: obj({ language: { type: 'string', enum: ['python', 'javascript'] }, code: str('Code to run (max 20k chars)') }, ['language', 'code']),
   confirm: true,
@@ -200,5 +211,37 @@ export const runCode: ToolDef = {
   async run() {
     // TODO: E2B's sandbox API needs its SDK (sandbox create + envd process RPC); not wired in v1.
     return { ok: false, summary: 'Code execution is not wired up on this server yet' };
+  },
+};
+
+export const SUMMARY_FENCE = 'trillion-summary';
+const SUMMARY_MAX = 38_000;
+
+/**
+ * Puts a long answer (report, plan, review, changelog…) into a tappable summary card under the reply.
+ * The card travels in the reply text as a fenced JSON block, so it is persisted with the message and
+ * renders again when an old conversation is opened.
+ */
+export const showSummary: ToolDef = {
+  name: 'show_summary',
+  description:
+    'Show a long answer as ONE tappable summary card under your reply (the user opens it full screen). Use for anything longer than ~3 short paragraphs: ' +
+    'reports, plans, reviews, explanations with sections, changelogs, long code walkthroughs. Call at most once per reply. ' +
+    'Afterwards, write only a brief reply saying what the summary holds; never repeat its content.',
+  parameters: obj(
+    { title: str('Short title, e.g. "Deploy review: api-service"'), markdown: str('The full content in Markdown (headings, lists, code blocks welcome)') },
+    ['title', 'markdown'],
+  ),
+  private: false,
+  topLevelOnly: true,
+  progress: () => 'Writing the summary',
+  async run(args) {
+    const title = redact(String(args.title ?? '').trim()).slice(0, 120) || 'Summary';
+    let markdown = redact(String(args.markdown ?? '').trim());
+    if (!markdown) return { ok: false, summary: 'Empty summary' };
+    if (markdown.length > SUMMARY_MAX) markdown = `${markdown.slice(0, SUMMARY_MAX)}\n\n…(summary truncated)`;
+    const id = Math.random().toString(36).slice(2, 10);
+    const block = `\n\n\`\`\`${SUMMARY_FENCE}\n${JSON.stringify({ id, title, markdown })}\n\`\`\`\n`;
+    return { ok: true, summary: `Summary: ${title}`, content: 'Summary card shown.', reply: block };
   },
 };

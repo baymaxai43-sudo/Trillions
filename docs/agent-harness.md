@@ -72,9 +72,23 @@ OAuth start/callback routes were removed: every connector is a pasted token.
 `delta {text}` · `tool_call {id,name,args}` · `tool_result {id,name,ok,summary}` ·
 `pending_confirmation {id,tool,args,summary}` · `confirmation_resolved {id,approved}` ·
 `artifact {name,url,mime,size,path}` · `connect_request {id,provider,label,reason,howTo,tokenUrl,connected,accountLabel}` ·
-`state_changed {scope: schedules|memories|connections}` · `status {status}` · `error {message}` · `done {status}`.
+`state_changed {scope: schedules|memories|connections}` · `status {status}` (run state) or `status {text}` (live progress line) ·
+`error {message}` · `done {status}`.
 `connect_request` is persisted as an `agent_steps` row (`kind=message`, `data.event`, no secrets) and replayed on reattach
 with the current connection state. The app turns `state_changed` into a reload of the matching Settings screen.
+`status {text}` lines ("Thinking", "Reading src/app.ts", "Waiting for your approval") come from `ToolDef.progress(args)` and
+the runner; they are ephemeral (RunManager buffer only, never `agent_steps`) and drive the app's status pill.
+
+### Summary cards
+The visible reply is kept to ≤3 short paragraphs; longer content goes through `show_summary({title, markdown})`, which
+appends a fenced block to the reply (one delta, persisted with the message, redacted, markdown capped at 38k chars):
+
+    ```trillion-summary
+    {"id":"…","title":"…","markdown":"…"}
+    ```
+
+The app splits replies with `parseSummaries` (apps/mobile/src/lib/summary.ts) into text + SummaryCard, and opens SummarySheet.
+
 Heartbeat comments (`: ping`) every 15 s keep Render's proxy from closing idle streams.
 
 ---

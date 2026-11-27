@@ -48,6 +48,7 @@ export const githubTools: ToolDef[] = [
   // ---- Reads ------------------------------------------------------------------
   {
     name: 'github_list_repos',
+    progress: () => 'Looking through your GitHub repos',
     provider: 'github',
     description: 'List repositories the token can access, most recently pushed first.',
     parameters: obj({ per_page: int('1-100, default 30'), owner: str('Only repos of this owner/org (optional)') }),
@@ -61,6 +62,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_get_repo',
+    progress: (a) => `Looking at ${a.owner}/${a.repo}`,
     provider: 'github',
     description: 'Get repository details: default branch, visibility, language, topics, open issues, last push.',
     parameters: obj(repo, ['owner', 'repo']),
@@ -83,6 +85,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_list_tree',
+    progress: (a) => `Looking through ${a.repo}`,
     provider: 'github',
     description: 'List files in a repo (recursive tree, capped at 600 entries). Use first to understand a codebase. Optionally filter by a path prefix.',
     parameters: obj({ ...repo, ref: str('Branch, tag or SHA (default: default branch)'), path: str('Only paths under this prefix, e.g. "src/" (optional)') }, ['owner', 'repo']),
@@ -99,6 +102,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_get_file',
+    progress: (a) => `Reading ${a.path}`,
     provider: 'github',
     description: 'Read a file (or list a directory) from a repo at a ref. For large files pass start_line/end_line.',
     parameters: obj(
@@ -134,6 +138,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_search_code',
+    progress: (a) => `Searching ${a.repo} for “${a.query}”`,
     provider: 'github',
     description: 'Search code in a repo (GitHub code search on the default branch). Returns matching paths with snippets.',
     parameters: obj({ ...repo, query: str('Search terms, e.g. "createClient language:ts"'), per_page: int('1-30, default 15') }, ['owner', 'repo', 'query']),
@@ -150,6 +155,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_list_branches',
+    progress: (a) => `Listing branches in ${a.repo}`,
     provider: 'github',
     description: 'List branches with their head commit SHA.',
     parameters: obj({ ...repo, per_page: int('1-100, default 50') }, ['owner', 'repo']),
@@ -162,6 +168,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_list_pull_requests',
+    progress: (a) => `Checking pull requests in ${a.repo}`,
     provider: 'github',
     description: 'List pull requests in a repository.',
     parameters: obj({ ...repo, state: strEnum(['open', 'closed', 'all']), per_page: int('1-50, default 20') }, ['owner', 'repo']),
@@ -174,6 +181,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_get_pull_request',
+    progress: (a) => `Reviewing PR #${a.number}`,
     provider: 'github',
     description: 'Get a pull request: description, status, mergeability, and changed files with their diffs (patches capped).',
     parameters: obj({ ...repo, number: int('PR number') }, ['owner', 'repo', 'number']),
@@ -200,6 +208,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_list_issues',
+    progress: (a) => `Checking issues in ${a.repo}`,
     provider: 'github',
     description: 'List issues (pull requests excluded).',
     parameters: obj({ ...repo, state: strEnum(['open', 'closed', 'all']), labels: str('Comma-separated labels (optional)'), per_page: int('1-50, default 20') }, ['owner', 'repo']),
@@ -213,6 +222,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_list_workflow_runs',
+    progress: () => 'Checking CI runs',
     provider: 'github',
     description: 'List recent GitHub Actions runs (CI), optionally for one branch or status.',
     parameters: obj({ ...repo, branch: str('Branch (optional)'), status: strEnum(['completed', 'in_progress', 'queued', 'failure', 'success']), per_page: int('1-30, default 10') }, ['owner', 'repo']),
@@ -226,6 +236,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_get_run_logs',
+    progress: () => 'Reading the CI logs',
     provider: 'github',
     description: 'For a workflow run: list its jobs and return the log tail of failed jobs (max 3 jobs, capped). Use to diagnose CI failures.',
     parameters: obj({ ...repo, run_id: int('Workflow run id') }, ['owner', 'repo', 'run_id']),
@@ -255,6 +266,7 @@ export const githubTools: ToolDef[] = [
   // ---- Writes (approval required) ---------------------------------------------
   {
     name: 'github_create_branch',
+    progress: (a) => `Creating branch ${a.branch}`,
     provider: 'github',
     confirm: true,
     description: 'Create a branch from another branch (default: the repo default branch). Do this before committing changes.',
@@ -271,6 +283,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_create_or_update_file',
+    progress: () => 'Preparing the commit',
     provider: 'github',
     confirm: true,
     description: 'Create or overwrite ONE file with a commit. For several files use github_commit_files. Prefer a feature branch over the default branch.',
@@ -294,6 +307,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_commit_files',
+    progress: () => 'Preparing the commit',
     provider: 'github',
     confirm: true,
     description:
@@ -344,6 +358,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_create_pull_request',
+    progress: () => 'Opening the pull request',
     provider: 'github',
     confirm: true,
     description: 'Open a pull request from head branch into base branch. Write a clear description: what, why, how it was verified, risks.',
@@ -357,6 +372,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_comment',
+    progress: () => 'Posting the comment',
     provider: 'github',
     confirm: true,
     description: 'Post a comment on an issue or pull request (public to everyone who can see the repo).',
@@ -370,6 +386,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_create_issue',
+    progress: () => 'Opening the issue',
     provider: 'github',
     confirm: true,
     description: 'Open an issue in a GitHub repository.',
@@ -383,6 +400,7 @@ export const githubTools: ToolDef[] = [
   },
   {
     name: 'github_merge_pull_request',
+    progress: (a) => `Merging PR #${a.number}`,
     provider: 'github',
     confirm: true,
     description: 'Merge a pull request. Check CI (github_list_workflow_runs) and mergeability first.',

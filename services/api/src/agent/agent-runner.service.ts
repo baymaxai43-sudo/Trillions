@@ -142,6 +142,23 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
     this.runs.emit(runId, ev);
   }
 
+  /** Live progress line for the app's status pill. Ephemeral: buffered for reattach, not saved to agent_steps. */
+  private progress(o: Pick<LoopOpts, 'runId' | 'depth'>, text: string) {
+    const clean = redact(text.replace(/\s+/g, ' ').trim());
+    if (!clean) return;
+    this.emit(o.runId, { type: 'status', text: clean.length > 60 ? `${clean.slice(0, 58).trimEnd()}…` : clean, depth: o.depth });
+  }
+
+  private toolProgress(tool: ToolDef | undefined, name: string, args: Record<string, unknown>): string {
+    try {
+      const t = tool?.progress?.(args);
+      if (t && !/undefined|\[object/.test(t)) return t;
+    } catch {
+      /* fall back to the label */
+    }
+    return name.replace(/^(github|vercel|render|supabase|netlify|gmail)_/, '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  }
+
   private async saveStep(runId: string, userId: string, row: Record<string, unknown>) {
     const seq = (this.stepSeq.get(runId) ?? 0) + 1;
     this.stepSeq.set(runId, seq);
@@ -318,7 +335,15 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
       plan?.length
         ? `Your plan (update with update_plan_step as you go; call replan if it stops fitting):\n${plan.map((s, i) => `${i}. [${s.status}] ${s.title}`).join('\n')}`
         : '',
-      'Reply format: clean, well-structured Markdown (short paragraphs, bullet lists, `code` and fenced code blocks with a language). Never write raw JSON, tool-call syntax or plan JSON in replies; call tools through the tool API only. Link PRs, commits and deployments you created.',
+      o.depth === 0
+        ? [
+            'Reply format (keep it short, like a sharp colleague texting back):',
+            '- Your visible reply is at most 3 short paragraphs of plain Markdown prose: no headings, minimal lists, small inline `code` only.',
+            '- Anything longer (reports, plans, reviews, explanations with sections, changelogs, long code walkthroughs, tables) goes into ONE call to show_summary({title, markdown}). The user taps the card to read it full screen.',
+            '- After show_summary, your reply only says in a sentence or two what the summary holds and the key takeaway. Never paste the summary content into the reply too.',
+            '- Never write raw JSON, tool-call syntax or plan JSON in replies; call tools through the tool API only. Link PRs, commits and deployments you created.',
+          ].join('\n')
+        : 'Reply format: concise Markdown. Never write raw JSON or tool-call syntax.',
     ]
       .filter(Boolean)
       .join('\n\n');
@@ -339,6 +364,7 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
 
     if (o.usePlan && o.depth === 0) {
       try {
+        this.progress(o, 'Planning the steps');
         const steps = await this.makePlan(o, tools.map((t) => t.name), conversationId);
         if (steps.length) {
           const plan: PlanStep[] = steps.map((title) => ({ title, status: 'pending' }));
@@ -373,6 +399,7 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
       let turnText = '';
       let calls: { id: string; name: string; arguments: string; extra?: Record<string, unknown> }[] = [];
       const filter = new ToolCallTextFilter();
+      this.progress(o, 'Thinking');
       const show = (t: string) => {
         if (!t) return;
         turnText += t;
@@ -420,6 +447,7 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
         const shownArgs = redactArgs(args);
         this.emit(o.runId, { type: 'tool_call', id: call.id, name: call.name, args: shownArgs, depth: o.depth });
         const tool = byName.get(call.name);
+        this.progress(o, this.toolProgress(tool, call.name, args));
         let result: ToolResult;
         if (badArgs) result = { ok: false, summary: 'Arguments were not valid JSON' };
         else if (!tool) {
@@ -429,6 +457,12 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
             : { ok: false, summary: `Unknown tool ${call.name}` };
         } else result = await this.invoke(o, tool, call.id, args);
 
+        if (result.ok && result.reply && o.depth === 0) {
+          // e.g. a summary card: part of the visible (and persisted) reply, bypassing the tool-call text filter.
+          const reply = redact(result.reply);
+          finalText += reply;
+          this.emit(o.runId, { type: 'delta', text: reply });
+        }
         const summary = redact(result.summary);
         if (tool && result.ok && isPrivateTool(tool)) this.sec(o.runId).touchedPrivate = true;
         if (tool?.syncScope && result.ok) this.emit(o.runId, { type: 'state_changed', scope: tool.syncScope, depth: o.depth });
@@ -442,6 +476,7 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
     // Step budget exhausted: one last turn without tools to summarise honestly.
     messages.push({ role: 'user', content: 'You have reached the step limit. Without calling tools, summarise what was done, what is left, and the result so far.' });
     let tail = '';
+    this.progress(o, 'Wrapping up');
     const filter = new ToolCallTextFilter();
     const show = (t: string) => {
       if (!t) return;
@@ -507,7 +542,9 @@ export class AgentRunner implements OnModuleInit, OnModuleDestroy {
             'Finish what you can without it, then tell the user exactly which action needs their approval and that they can ask you to do it from the app.',
         };
       }
+      this.progress(o, 'Waiting for your approval');
       const approved = await this.confirm(o, tool, callId, args, why || undefined);
+      if (approved) this.progress(o, this.toolProgress(tool, tool.name, args));
       if (!approved) return { ok: false, summary: 'Declined by the user', content: 'The user declined this action. Do not retry it.' };
     }
     const ctx: ToolContext = {

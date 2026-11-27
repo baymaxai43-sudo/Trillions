@@ -94,7 +94,11 @@ export type AgentEvent = { seq?: number; depth?: number } & (
     }
   /** Something the Settings screens show changed (schedules, memories, connections). */
   | { type: 'state_changed'; scope: SyncScope }
-  | { type: 'status'; status: RunStatus }
+  /**
+   * Run state changes carry `status`; live progress lines ("Reading src/app.ts") carry `text`.
+   * Progress lines are ephemeral (buffered for reattach, never written to agent_steps).
+   */
+  | { type: 'status'; status?: RunStatus; text?: string }
   | { type: 'usage'; inputTokens: number; outputTokens: number }
   | { type: 'error'; message: string }
   | { type: 'done'; status: RunStatus }

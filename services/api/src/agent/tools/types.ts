@@ -9,6 +9,8 @@ export interface ToolResult {
   summary: string;
   /** What the model sees (capped by the runner). Defaults to summary. */
   content?: string;
+  /** Text appended to the visible assistant reply (top-level runs only), e.g. a summary card block. */
+  reply?: string;
 }
 
 /** Per-run security state shared by the runner and tools (prompt-injection containment). */
@@ -52,6 +54,8 @@ export interface ToolDef {
   private?: boolean;
   /** Settings area this tool changes on success; the app reloads it. */
   syncScope?: SyncScope;
+  /** Short live status shown while this tool runs ("Reading src/app.ts"). Never include secrets. */
+  progress?(args: any): string;
   /** Human sentence shown on the confirmation sheet. */
   describe?(args: any): string;
   /** Hidden when false (e.g. missing server key or feature flag). */

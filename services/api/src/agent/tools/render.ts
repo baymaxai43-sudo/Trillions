@@ -17,6 +17,7 @@ const svc = { serviceId: str('Service id (srv-…)') };
 export const renderTools: ToolDef[] = [
   {
     name: 'render_list_services',
+    progress: () => 'Checking Render services',
     provider: 'render',
     description: 'List Render services (id, name, type, suspended, URL, branch).',
     parameters: obj({ limit: int('1-100, default 30') }),
@@ -29,6 +30,7 @@ export const renderTools: ToolDef[] = [
   },
   {
     name: 'render_list_deploys',
+    progress: () => 'Checking Render deploys',
     provider: 'render',
     description: 'List recent deploys of a Render service with status and commit.',
     parameters: obj({ ...svc, limit: int('1-20, default 10') }, ['serviceId']),
@@ -41,6 +43,7 @@ export const renderTools: ToolDef[] = [
   },
   {
     name: 'render_get_logs',
+    progress: () => 'Reading Render logs',
     provider: 'render',
     description: 'Fetch recent logs for a Render service (newest last, capped). Optionally filter by text.',
     parameters: obj({ ...svc, limit: int('1-100, default 60'), text: str('Only lines containing this text (optional)') }, ['serviceId']),
@@ -56,6 +59,7 @@ export const renderTools: ToolDef[] = [
   },
   {
     name: 'render_trigger_deploy',
+    progress: () => 'Starting the Render deploy',
     provider: 'render',
     confirm: true,
     description: 'Trigger a new deploy of a Render service (latest commit of its branch).',
@@ -69,6 +73,7 @@ export const renderTools: ToolDef[] = [
   },
   {
     name: 'render_restart_service',
+    progress: () => 'Restarting the Render service',
     provider: 'render',
     confirm: true,
     description: 'Restart a running Render service without rebuilding (brief downtime on single-instance plans).',

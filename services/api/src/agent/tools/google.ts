@@ -37,6 +37,7 @@ const googleEnabled = () => false;
 const gmailTools: ToolDef[] = [
   {
     name: 'gmail_search',
+    progress: () => 'Searching your mail',
     provider: 'google',
     description: 'Search the user\'s Gmail with Gmail query syntax (e.g. "from:alice newer_than:7d"). Returns sender, subject, date, snippet and id.',
     parameters: obj({ query: str('Gmail search query'), max: int('1-15, default 8') }, ['query']),
@@ -55,6 +56,7 @@ const gmailTools: ToolDef[] = [
   },
   {
     name: 'gmail_read',
+    progress: () => 'Reading an email',
     provider: 'google',
     description: 'Read one email by id (from gmail_search).',
     parameters: obj({ id: str('Message id') }, ['id']),
@@ -71,6 +73,7 @@ const gmailTools: ToolDef[] = [
   },
   {
     name: 'gmail_send',
+    progress: () => 'Sending the email',
     provider: 'google',
     confirm: true,
     description: 'Send a plain-text email from the user\'s Gmail. Always requires the user\'s approval.',

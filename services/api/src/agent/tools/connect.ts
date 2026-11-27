@@ -6,6 +6,7 @@ import { obj, str, strEnum, ToolDef } from './types';
 /** Shows a secure paste card in the chat. The token goes from the card straight to the API, never through the model. */
 export const requestConnection: ToolDef = {
   name: 'request_connection',
+  progress: (a) => `Asking you to connect ${a.provider ?? 'an account'}`,
   description:
     'Ask the user to connect an account (GitHub, Vercel, Render, Supabase, Netlify). Shows a secure card in the chat where they paste an access token. ' +
     'Use when the user asks to connect something, or when a task needs a provider that is not connected. Never ask for tokens in chat.',

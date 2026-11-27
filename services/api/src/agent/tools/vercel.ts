@@ -20,6 +20,7 @@ const enc = encodeURIComponent;
 export const vercelTools: ToolDef[] = [
   {
     name: 'vercel_list_projects',
+    progress: () => 'Checking Vercel projects',
     provider: 'vercel',
     description: 'List Vercel projects (personal by default; pass teamId for a team). Also lists the teams the token can see.',
     parameters: obj({ limit: int('1-50, default 20'), ...team }),
@@ -34,6 +35,7 @@ export const vercelTools: ToolDef[] = [
   },
   {
     name: 'vercel_list_deployments',
+    progress: () => 'Checking Vercel deployments',
     provider: 'vercel',
     description: 'List recent deployments, optionally for one project id.',
     parameters: obj({ projectId: str('Project id (optional)'), limit: int('1-20, default 10'), ...team }),
@@ -49,6 +51,7 @@ export const vercelTools: ToolDef[] = [
   },
   {
     name: 'vercel_get_deployment_logs',
+    progress: () => 'Reading the Vercel build logs',
     provider: 'vercel',
     description: 'Get the build log / events of a deployment (tail, capped). Use to diagnose failed builds.',
     parameters: obj({ deploymentId: str('Deployment id (dpl_…) or URL'), ...team }, ['deploymentId']),
@@ -62,6 +65,7 @@ export const vercelTools: ToolDef[] = [
   },
   {
     name: 'vercel_list_env_names',
+    progress: () => 'Checking Vercel env names',
     provider: 'vercel',
     description: 'List a project’s environment variable NAMES and targets. Values are never returned.',
     parameters: obj({ projectId: str('Project id or name'), ...team }, ['projectId']),
@@ -74,6 +78,7 @@ export const vercelTools: ToolDef[] = [
   },
   {
     name: 'vercel_trigger_deploy',
+    progress: () => 'Starting the Vercel deploy',
     provider: 'vercel',
     confirm: true,
     description: 'Redeploy the latest deployment of a Vercel project to production.',
